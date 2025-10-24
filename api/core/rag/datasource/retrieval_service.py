@@ -1,4 +1,5 @@
 import concurrent.futures
+import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask, current_app
@@ -20,6 +21,10 @@ from models.dataset import ChildChunk, Dataset, DocumentSegment
 from models.dataset import Document as DatasetDocument
 from services.external_knowledge_service import ExternalDatasetService
 
+# Configure logging for RAG pipeline tracing
+logger = logging.getLogger(__name__)
+rag_logger = logging.getLogger("dify.rag.retrieval")
+
 default_retrieval_model = {
     "search_method": RetrievalMethod.SEMANTIC_SEARCH.value,
     "reranking_enable": False,
@@ -31,6 +36,64 @@ default_retrieval_model = {
 
 class RetrievalService:
     # Cache precompiled regular expressions to avoid repeated compilation
+
+    @staticmethod
+    def apply_diversity_constraint(
+        documents: list[Document], top_k: int, max_priority_ratio: float = 0.6
+    ) -> list[Document]:
+        """
+        Apply diversity constraint to ensure variety in top_k results.
+        Limits the number of priority-boosted documents to avoid dominating results.
+
+        Args:
+            documents: Sorted documents (highest score first)
+            top_k: Target number of documents to return
+            max_priority_ratio: Maximum ratio of priority documents (default 0.6 = 60%)
+
+        Returns:
+            Top-k documents with diversity constraint applied
+        """
+        if not documents or len(documents) <= top_k:
+            return documents[:top_k]
+
+        max_priority_count = int(top_k * max_priority_ratio)
+        rag_logger.info(
+            f"[DIVERSITY] Applying constraint: top_k={top_k}, max_priority={max_priority_count} ({max_priority_ratio * 100:.0f}%)"
+        )
+
+        result = []
+        priority_count = 0
+        skipped_priority = []
+
+        for doc in documents:
+            if len(result) >= top_k:
+                break
+
+            is_priority = doc.metadata.get("priority_boosted", False)
+
+            if is_priority:
+                if priority_count < max_priority_count:
+                    result.append(doc)
+                    priority_count += 1
+                else:
+                    skipped_priority.append(doc)
+            else:
+                result.append(doc)
+
+        # If we still have space and only skipped priority docs left, add them
+        if len(result) < top_k and skipped_priority:
+            remaining = top_k - len(result)
+            result.extend(skipped_priority[:remaining])
+            rag_logger.info(
+                f"[DIVERSITY] Added {min(remaining, len(skipped_priority))} more priority docs to fill quota"
+            )
+
+        rag_logger.info(
+            f"[DIVERSITY] Result: {len(result)} docs ({priority_count} priority, {len(result) - priority_count} normal)"
+        )
+
+        return result
+
     @classmethod
     def retrieve(
         cls,
@@ -108,17 +171,81 @@ class RetrievalService:
 
         # Deduplicate documents for hybrid search to avoid duplicate chunks
         if retrieval_method == RetrievalMethod.HYBRID_SEARCH.value:
+            rag_logger.info(f"[HYBRID_SEARCH] Before deduplication: {len(all_documents)} documents")
             all_documents = cls._deduplicate_documents(all_documents)
+            rag_logger.info(f"[HYBRID_SEARCH] After deduplication: {len(all_documents)} documents")
+        else:
+            rag_logger.info(f"[{retrieval_method.upper()}] Retrieved {len(all_documents)} documents")
+
+        # Apply post-retrieval filtering BEFORE reranking if enabled
+        # This reduces the number of documents that need to be reranked, improving efficiency
+        filter_enabled = getattr(dify_config, "RAG_FILTER_ENABLED", False)
+        if filter_enabled:
+            rag_logger.info("[FILTER] Filter enabled: %s", filter_enabled)
+            if all_documents:
+                try:
+                    from core.rag.filter.filter_service import FilterService
+
+                    docs_before_filter = len(all_documents)
+                    all_documents = FilterService.apply_filter(all_documents, query)
+                    docs_after_filter = len(all_documents)
+                    filtered_count = docs_before_filter - docs_after_filter
+                    rag_logger.info("[FILTER] Query: '%s'", query)
+                    rag_logger.info(
+                        "[FILTER] Before: %s documents, After: %s documents, Filtered out: %s", docs_before_filter, docs_after_filter, filtered_count
+                    )
+                except (ImportError, Exception) as e:
+                    # Log error but continue without filtering to avoid breaking retrieval
+                    rag_logger.warning("[FILTER] Error applying filter: %s, continuing without filtering", e)
+                    pass
+        else:
+            rag_logger.debug("[FILTER] Filter disabled (RAG_FILTER_ENABLED=%s)", filter_enabled)
+
+        # Apply reranking for hybrid search AFTER filtering
+        if retrieval_method == RetrievalMethod.HYBRID_SEARCH.value:
+            rag_logger.info(f"[HYBRID_SEARCH] Before reranking: {len(all_documents)} documents")
             data_post_processor = DataPostProcessor(
                 str(dataset.tenant_id), reranking_mode, reranking_model, weights, False
             )
+            # Don't truncate at rerank stage, let diversity constraint handle final top_k
+            rerank_top_n = len(all_documents)  # Keep all documents for now
             all_documents = data_post_processor.invoke(
                 query=query,
                 documents=all_documents,
                 score_threshold=score_threshold,
-                top_n=top_k,
+                top_n=rerank_top_n,
             )
+            rag_logger.info(f"[HYBRID_SEARCH] After reranking: {len(all_documents)} documents (no truncation yet)")
 
+        # Apply document priority boost AFTER reranking (if enabled)
+        priority_enabled = getattr(dify_config, "RAG_DOCUMENT_PRIORITY_ENABLED", False)
+        if priority_enabled and all_documents:
+            try:
+                from core.rag.retrieval.document_priority_service import DocumentPriorityService
+
+                rag_logger.info(f"[PRIORITY] Applying priority boost to {len(all_documents)} documents after reranking")
+                all_documents = DocumentPriorityService.apply_priority(all_documents, dataset_id)
+            except (ImportError, Exception) as e:
+                rag_logger.warning("[PRIORITY] Error applying priority: %s", e)
+                pass  # Service not available, continue without priority
+
+        # Apply diversity constraint to ensure variety in final results
+        priority_enabled = getattr(dify_config, "RAG_DOCUMENT_PRIORITY_ENABLED", False)
+        max_priority_ratio = getattr(dify_config, "RAG_PRIORITY_MAX_RATIO", 0.4)
+
+        if priority_enabled and len(all_documents) > 0:
+            rag_logger.info(f"[DIVERSITY] Before constraint: {len(all_documents)} documents")
+            all_documents = cls.apply_diversity_constraint(all_documents, top_k, max_priority_ratio)
+            rag_logger.info(
+                f"[DIVERSITY] After constraint: {len(all_documents)} documents (top_k={top_k}, max_priority_ratio={max_priority_ratio})"
+            )
+        else:
+            # Normal truncation to top_k if priority is disabled
+            if len(all_documents) > top_k:
+                all_documents = all_documents[:top_k]
+                rag_logger.info(f"[TRUNCATE] Truncated to top_k: {len(all_documents)} documents")
+
+        rag_logger.info(f"[RETRIEVAL] Final result: {len(all_documents)} documents for top_k={top_k}")
         return all_documents
 
     @classmethod
@@ -203,9 +330,14 @@ class RetrievalService:
 
                 keyword = Keyword(dataset=dataset)
 
+                # Get top_k multiplier for retrieval (default 3.0)
+                multiplier = getattr(dify_config, "RAG_RETRIEVAL_TOP_K_MULTIPLIER", 3.0)
+                retrieval_top_k = int(top_k * multiplier)
+
                 documents = keyword.search(
-                    cls.escape_query_for_search(query), top_k=top_k, document_ids_filter=document_ids_filter
+                    cls.escape_query_for_search(query), top_k=retrieval_top_k, document_ids_filter=document_ids_filter
                 )
+
                 all_documents.extend(documents)
             except Exception as e:
                 exceptions.append(str(e))
@@ -230,11 +362,15 @@ class RetrievalService:
                 if not dataset:
                     raise ValueError("dataset not found")
 
+                # Get top_k multiplier for retrieval (default 3.0)
+                multiplier = getattr(dify_config, "RAG_RETRIEVAL_TOP_K_MULTIPLIER", 3.0)
+                retrieval_top_k = int(top_k * multiplier)
+
                 vector = Vector(dataset=dataset)
                 documents = vector.search_by_vector(
                     query,
                     search_type="similarity_score_threshold",
-                    top_k=top_k,
+                    top_k=retrieval_top_k,
                     score_threshold=score_threshold,
                     filter={"group_id": [dataset.id]},
                     document_ids_filter=document_ids_filter,
@@ -250,15 +386,18 @@ class RetrievalService:
                         data_post_processor = DataPostProcessor(
                             str(dataset.tenant_id), str(RerankMode.RERANKING_MODEL.value), reranking_model, None, False
                         )
+                        # Don't truncate at rerank stage, keep all documents for priority boost and diversity
+                        rerank_top_n = len(documents)
                         all_documents.extend(
                             data_post_processor.invoke(
                                 query=query,
                                 documents=documents,
                                 score_threshold=score_threshold,
-                                top_n=len(documents),
+                                top_n=rerank_top_n,
                             )
                         )
                     else:
+                        # Keep more documents for priority boost and diversity (no early truncation)
                         all_documents.extend(documents)
             except Exception as e:
                 exceptions.append(str(e))
@@ -283,11 +422,16 @@ class RetrievalService:
                 if not dataset:
                     raise ValueError("dataset not found")
 
+                # Get top_k multiplier for retrieval (default 3.0)
+                multiplier = getattr(dify_config, "RAG_RETRIEVAL_TOP_K_MULTIPLIER", 3.0)
+                retrieval_top_k = int(top_k * multiplier)
+
                 vector_processor = Vector(dataset=dataset)
 
                 documents = vector_processor.search_by_full_text(
-                    cls.escape_query_for_search(query), top_k=top_k, document_ids_filter=document_ids_filter
+                    cls.escape_query_for_search(query), top_k=retrieval_top_k, document_ids_filter=document_ids_filter
                 )
+
                 if documents:
                     if (
                         reranking_model
@@ -298,15 +442,18 @@ class RetrievalService:
                         data_post_processor = DataPostProcessor(
                             str(dataset.tenant_id), str(RerankMode.RERANKING_MODEL.value), reranking_model, None, False
                         )
+                        # Don't truncate at rerank stage, keep all documents for priority boost and diversity
+                        rerank_top_n = len(documents)
                         all_documents.extend(
                             data_post_processor.invoke(
                                 query=query,
                                 documents=documents,
                                 score_threshold=score_threshold,
-                                top_n=len(documents),
+                                top_n=rerank_top_n,
                             )
                         )
                     else:
+                        # Keep more documents for priority boost and diversity (no early truncation)
                         all_documents.extend(documents)
             except Exception as e:
                 exceptions.append(str(e))
