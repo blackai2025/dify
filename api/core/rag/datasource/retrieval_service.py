@@ -192,7 +192,10 @@ class RetrievalService:
                     filtered_count = docs_before_filter - docs_after_filter
                     rag_logger.info("[FILTER] Query: '%s'", query)
                     rag_logger.info(
-                        "[FILTER] Before: %s documents, After: %s documents, Filtered out: %s", docs_before_filter, docs_after_filter, filtered_count
+                        "[FILTER] Before: %s documents, After: %s documents, Filtered out: %s",
+                        docs_before_filter,
+                        docs_after_filter,
+                        filtered_count,
                     )
                 except (ImportError, Exception) as e:
                     # Log error but continue without filtering to avoid breaking retrieval

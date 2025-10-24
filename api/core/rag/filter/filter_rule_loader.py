@@ -7,7 +7,6 @@ Uses structured entity extraction: base entities + attributes for precise filter
 
 import csv
 import logging
-import operator
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,25 +27,28 @@ class EntityExtraction:
     def matches(self, other: "EntityExtraction") -> bool:
         """
         判断是否匹配
-        
+
         对比模式（查询包含多个实体）：
         - 文档实体匹配查询的任一实体即可
-        
+
         普通模式（查询只有一个实体）：
         - 基础实体必须完全相同（大小写不敏感）
         - 或者查询实体是文档实体的缩写形式（如 "p20up" 匹配 "P20 Ultra Plus"）
-        - 查询的所有属性必须在文档中存在（子集关系）
+        - 查询的所有属性必须在文档中存在（子集关系，支持模糊匹配）
 
         示例：
         - Query: [P20, P20 Plus] (对比模式)
           Doc:   P20  → ✓ PASS (匹配其中一个)
-          
+
         - Query: e5q + [75寸]
           Doc:   e5q + [75寸, 黑色]  → ✓ PASS
 
         - Query: e5q + [75寸]
+          Doc:   e5q + [75]  → ✓ PASS (数字模糊匹配)
+
+        - Query: e5q + [75寸]
           Doc:   e5q + [65寸]  → ✗ FAIL
-          
+
         - Query: p20up
           Doc:   P20 Ultra Plus  → ✓ PASS (缩写匹配)
         """
@@ -61,108 +63,192 @@ class EntityExtraction:
         # 普通模式：基础实体必须匹配（大小写不敏感）或缩写匹配
         query_lower = self.base_entity.lower()
         doc_lower = other.base_entity.lower()
-        
+
         # 1. 完全匹配
         if query_lower == doc_lower:
-            # 查询属性必须是文档属性的子集（大小写不敏感）
-            query_attrs = {attr.lower() for attr in self.attributes}
-            doc_attrs = {attr.lower() for attr in other.attributes}
-            return query_attrs.issubset(doc_attrs)
-        
+            # 查询属性必须是文档属性的子集（支持模糊匹配）
+            return self._attributes_match(self.attributes, other.attributes)
+
         # 2. 检查缩写匹配（查询是否是文档的缩写）
         if self._is_abbreviation_match(query_lower, doc_lower):
             # 缩写匹配时，查询属性也必须满足
-            query_attrs = {attr.lower() for attr in self.attributes}
-            doc_attrs = {attr.lower() for attr in other.attributes}
-            return query_attrs.issubset(doc_attrs)
-        
+            return self._attributes_match(self.attributes, other.attributes)
+
         # 3. 检查反向缩写匹配（文档是否是查询的缩写）
         if self._is_abbreviation_match(doc_lower, query_lower):
-            query_attrs = {attr.lower() for attr in self.attributes}
-            doc_attrs = {attr.lower() for attr in other.attributes}
-            return query_attrs.issubset(doc_attrs)
-        
+            return self._attributes_match(self.attributes, other.attributes)
+
         return False
-    
+
+    @staticmethod
+    def _attributes_match(query_attrs: list[str], doc_attrs: list[str]) -> bool:
+        """
+        Check if query attributes match document attributes.
+
+        Supports fuzzy matching for numeric attributes:
+        - "75" (in doc) matches "75寸" (in query)
+        - "8" (in doc) matches "8GB" (in query)
+
+        Args:
+            query_attrs: Query attribute list
+            doc_attrs: Document attribute list
+
+        Returns:
+            True if all query attributes match document attributes
+        """
+        if not query_attrs:
+            return True  # No query attributes to match
+
+        # Normalize attributes (lowercase)
+        query_attrs_lower = [attr.lower() for attr in query_attrs]
+        doc_attrs_lower = [attr.lower() for attr in doc_attrs]
+
+        # Check if each query attribute has a match in document attributes
+        for query_attr in query_attrs_lower:
+            matched = False
+            match_type = None
+            matched_doc_attr = None
+
+            # Try exact match first
+            if query_attr in doc_attrs_lower:
+                matched = True
+                match_type = "exact"
+                matched_doc_attr = query_attr
+            else:
+                # Try fuzzy match: extract numeric part and compare
+                query_num = EntityExtraction._extract_number(query_attr)
+                if query_num:
+                    # Query has a number - check if any doc attribute has the same number
+                    for doc_attr in doc_attrs_lower:
+                        doc_num = EntityExtraction._extract_number(doc_attr)
+                        if doc_num == query_num:
+                            matched = True
+                            match_type = "fuzzy"
+                            matched_doc_attr = doc_attr
+                            break
+
+            if matched:
+                logger.debug(
+                    "[FILTER_LOADER] ✓ Attribute match (%s): query='%s' <-> doc='%s'",
+                    match_type,
+                    query_attr,
+                    matched_doc_attr,
+                )
+            else:
+                logger.info(
+                    "[FILTER_LOADER] ✗ No match: query attribute '%s' not found in doc attributes %s",
+                    query_attr,
+                    doc_attrs_lower,
+                )
+                return False
+
+        return True
+
+    @staticmethod
+    def _extract_number(attr: str) -> Optional[str]:
+        """
+        Extract the numeric part from an attribute.
+
+        Examples:
+        - "75寸" → "75"
+        - "8GB" → "8"
+        - "黑色" → None
+        - "75" → "75"
+
+        Args:
+            attr: Attribute string
+
+        Returns:
+            Numeric part or None
+        """
+        import re
+
+        match = re.search(r"^\d+", attr)
+        return match.group(0) if match else None
+
     @staticmethod
     def _is_abbreviation_match(abbrev: str, full: str) -> bool:
         """
         检查 abbrev 是否是 full 的缩写形式
-        
+
         例如：
         - "p20up" 是 "p20 ultra plus" 的缩写 (p20 + u + p)
         - "p20u" 是 "p20 ultra" 的缩写 (p20 + u)
         - "t80" 不是 "t80s" 的缩写
-        
+
         Args:
             abbrev: 缩写形式（小写）
             full: 完整形式（小写）
-            
+
         Returns:
             True if abbrev is an abbreviation of full
         """
         # 移除空格
         full_no_space = full.replace(" ", "")
         abbrev_no_space = abbrev.replace(" ", "")
-        
+
         # 如果缩写比完整形式长或相等，不可能是缩写
         if len(abbrev_no_space) >= len(full_no_space):
             return False
-        
+
         # 将完整形式按空格分割成单词
         words = full.split()
         if len(words) <= 1:
             # 只有一个单词，直接检查是否为前缀
             return full_no_space.startswith(abbrev_no_space)
-        
+
         # 多单词情况：检查缩写模式
         # 例如：p20 ultra plus -> p20up, p20u, p20 u, etc.
-        
+
         # 尝试匹配：第一个单词 + 后续单词的首字母
         first_word = words[0]
         rest_words = words[1:]
-        
+
         # 检查缩写是否以第一个单词开头
         if not abbrev_no_space.startswith(first_word):
             return False
-        
+
         # 获取第一个单词后面的部分
-        after_first = abbrev_no_space[len(first_word):]
-        
+        after_first = abbrev_no_space[len(first_word) :]
+
+        # 如果缩写恰好等于第一个单词，且还有后续单词，则不是缩写（例如 "e5q" vs "e5q pro"）
+        if not after_first and rest_words:
+            return False
+
         # 情况1：完全匹配（如 "p20ultraplus" 匹配 "p20 ultra plus"）
         expected_full = "".join(words)
         if abbrev_no_space == expected_full:
             return True
-        
+
         # 情况2：首字母缩写（如 "p20up" 匹配 "p20 ultra plus"）
         # 检查剩余部分是否匹配后续单词的首字母
         if len(after_first) == len(rest_words):
             # 每个字符应该匹配对应单词的首字母
             return all(char == rest_words[i][0] for i, char in enumerate(after_first))
-        
+
         # 情况3：部分缩写（如 "p20u" 匹配 "p20 ultra plus"）
         # 检查是否匹配前N个单词的首字母
-        if len(after_first) < len(rest_words):
+        if len(after_first) < len(rest_words) and after_first:
             return all(char == rest_words[i][0] for i, char in enumerate(after_first))
-        
+
         # 情况4：混合形式（如 "p20ultra" 匹配 "p20 ultra plus"）
         # 检查是否匹配部分完整单词
         remaining = after_first
         for word in rest_words:
             if remaining.startswith(word):
                 # 完整单词匹配
-                remaining = remaining[len(word):]
+                remaining = remaining[len(word) :]
             elif remaining and remaining[0] == word[0]:
                 # 首字母匹配
                 remaining = remaining[1:]
             else:
                 # 不匹配
                 return False
-            
+
             if not remaining:
                 # 已经匹配完了
                 return True
-        
+
         return not remaining  # 如果remaining为空，说明完全匹配
 
 
@@ -234,9 +320,7 @@ class FilterRuleLoader:
         rules = [{"entity": e} for e in base_entities]
         cls._rules_cache = rules
 
-        logger.info(
-            "[FILTER_LOADER] Loaded %d base entities, %d attributes", len(base_entities), len(attributes)
-        )
+        logger.info("[FILTER_LOADER] Loaded %d base entities, %d attributes", len(base_entities), len(attributes))
         return rules
 
     @classmethod
@@ -362,7 +446,7 @@ class FilterRuleLoader:
     def _is_comparison_query(cls, query: str) -> bool:
         """
         Check if query is a comparison query.
-        
+
         Comparison indicators:
         - 和 (and)
         - 与 (with)
@@ -371,19 +455,28 @@ class FilterRuleLoader:
         - 比较 (compare)
         - vs
         - versus
-        
+
         Args:
             query: User query text
-            
+
         Returns:
             True if comparison query, False otherwise
         """
         comparison_keywords = [
-            "和", "与", "区别", "对比", "比较", 
-            "vs", "versus", "VS", "Versus",
-            "还是", "或者", "哪个好"
+            "和",
+            "与",
+            "区别",
+            "对比",
+            "比较",
+            "vs",
+            "versus",
+            "VS",
+            "Versus",
+            "还是",
+            "或者",
+            "哪个好",
         ]
-        
+
         query_lower = query.lower()
         return any(keyword.lower() in query_lower for keyword in comparison_keywords)
 
@@ -417,7 +510,7 @@ class FilterRuleLoader:
         # Extract entities
         all_entities = []
         entity_spans = []
-        
+
         if cls._base_entity_patterns:
             if extract_all_entities:
                 # Extract ALL matching entities (for comparison queries)
@@ -435,42 +528,70 @@ class FilterRuleLoader:
             else:
                 # Extract single entity with best match (prefer exact/longer matches)
                 # Collect all potential matches and score them
-                candidates = []  # (entity, match_obj, score)
+                candidates = []  # (entity, match_obj, score, start, end)
                 for entity, pattern in cls._base_entity_patterns:
                     match = pattern.search(text)
                     if match:
-                        matched_length = match.end() - match.start()
+                        start, end = match.span()
+                        matched_length = end - start
                         entity_length = len(entity)
-                        matched_text = text[match.start():match.end()]
-                        
+                        matched_text = text[start:end]
+
                         # Check for exact match (consider both with and without spaces)
                         # 1. Matched text == entity (exact, with spaces preserved)
                         # 2. Matched text == entity without spaces (variant form like "P20Ultra" for "P20 Ultra")
                         entity_no_space = entity.replace(" ", "").lower()
                         matched_no_space = matched_text.replace(" ", "").lower()
                         is_exact = (matched_text.lower() == entity.lower()) or (matched_no_space == entity_no_space)
-                        
-                        # Scoring: 
+
+                        # Scoring:
                         # - Exact match gets highest priority (score +1000)
                         # - Prefer longer matches (matched_length bonus)
                         # - Penalize length mismatch from entity
                         score = (1000 if is_exact else 0) + matched_length - abs(matched_length - entity_length)
-                        candidates.append((entity, match, score))
+                        candidates.append((entity, match, score, start, end))
                         logger.debug(
-                            "[FILTER_LOADER] Candidate entity '%s' at %s, matched='%s', score=%d (exact=%s)",
-                            entity, match.span(), matched_text, score, is_exact
+                            "[FILTER_LOADER] Candidate entity '%s' at %s-%s, matched='%s', score=%d (exact=%s)",
+                            entity,
+                            start,
+                            end,
+                            matched_text,
+                            score,
+                            is_exact,
                         )
-                
-                # Select best candidate (highest score)
+
+                # Remove overlapping candidates: for overlapping matches, keep only the longest one
                 if candidates:
-                    candidates.sort(key=operator.itemgetter(2), reverse=True)
-                    best_entity, best_match, best_score = candidates[0]
-                    all_entities = [best_entity]
-                    entity_spans = [best_match.span()]
-                    logger.debug(
-                        "[FILTER_LOADER] Selected best entity '%s' at %s (score=%d)",
-                        best_entity, best_match.span(), best_score
-                    )
+                    # Sort by score (descending), then by length (descending)
+                    candidates.sort(key=lambda x: (x[2], x[4] - x[3]), reverse=True)
+                    
+                    # Filter out overlapping candidates
+                    non_overlapping = []
+                    used_positions = set()
+                    
+                    for entity, match, score, start, end in candidates:
+                        # Check if this candidate overlaps with any already selected
+                        if not any(pos in used_positions for pos in range(start, end)):
+                            non_overlapping.append((entity, match, score))
+                            used_positions.update(range(start, end))
+                            logger.debug(
+                                "[FILTER_LOADER] Kept non-overlapping entity '%s' at %s-%s (score=%d)",
+                                entity,
+                                start,
+                                end,
+                                score,
+                            )
+                    
+                    if non_overlapping:
+                        best_entity, best_match, best_score = non_overlapping[0]
+                        all_entities = [best_entity]
+                        entity_spans = [best_match.span()]
+                        logger.debug(
+                            "[FILTER_LOADER] Selected best entity '%s' at %s (score=%d)",
+                            best_entity,
+                            best_match.span(),
+                            best_score,
+                        )
 
         # Use the first entity as base_entity (for backward compatibility)
         base_entity = all_entities[0] if all_entities else None
@@ -503,14 +624,14 @@ class FilterRuleLoader:
             attributes.extend(inferred_attrs)
 
         result = EntityExtraction(
-            base_entity=base_entity, 
-            attributes=attributes, 
-            all_entities=all_entities,
-            is_comparison=is_comparison
+            base_entity=base_entity, attributes=attributes, all_entities=all_entities, is_comparison=is_comparison
         )
         logger.info(
-            "[FILTER_LOADER] Extracted from text: base='%s', attrs=%s, all_entities=%s, is_comparison=%s", 
-            base_entity, attributes, all_entities, is_comparison
+            "[FILTER_LOADER] Extracted from text: base='%s', attrs=%s, all_entities=%s, is_comparison=%s",
+            base_entity,
+            attributes,
+            all_entities,
+            is_comparison,
         )
         return result
 
@@ -615,9 +736,7 @@ class FilterRuleLoader:
                 for suffix in type_suffixes[attr_type]:
                     candidate = f"{number}{suffix}"
                     if candidate == attr_name:
-                        logger.debug(
-                            "[FILTER_LOADER] Number '%s' + suffix '%s' → '%s'", number, suffix, attr_name
-                        )
+                        logger.debug("[FILTER_LOADER] Number '%s' + suffix '%s' → '%s'", number, suffix, attr_name)
                         return attr_name
 
         return None
@@ -693,7 +812,7 @@ class FilterRuleLoader:
     def get_applicable_rules(cls, query: str) -> EntityExtraction:
         """
         Extract structured entity from query.
-        
+
         For comparison queries (containing "和", "区别", etc.), extracts all entities.
         For normal queries, extracts only the longest matching entity.
 
@@ -706,7 +825,7 @@ class FilterRuleLoader:
         # Check if this is a comparison query and extract accordingly
         is_comparison = cls._is_comparison_query(query)
         extraction = cls.extract_structured_entity(query, extract_all_entities=is_comparison)
-        
+
         return extraction
 
     @classmethod
@@ -742,21 +861,33 @@ class FilterRuleLoader:
 
         # Check if match
         if query_extraction.matches(doc_extraction):
+            # Log successful match for debugging
+            logger.info(
+                "[FILTER_LOADER] ✓ Match: doc=%s%s vs query=%s%s",
+                doc_extraction.base_entity.upper(),
+                doc_extraction.attributes,
+                query_extraction.base_entity.upper(),
+                query_extraction.attributes,
+            )
             return False, None
-        
+
         # No match - generate reason
+        logger.info(
+            "[FILTER_LOADER] ✗ No match: doc=%s%s vs query=%s%s",
+            doc_extraction.base_entity.upper(),
+            doc_extraction.attributes,
+            query_extraction.base_entity.upper(),
+            query_extraction.attributes,
+        )
+
         if query_extraction.is_comparison:
             reason = (
-                f"对比模式：文档实体 '{doc_extraction.base_entity}' "
-                f"不在查询实体列表中 {query_extraction.all_entities}"
+                f"对比模式：文档实体 '{doc_extraction.base_entity}' 不在查询实体列表中 {query_extraction.all_entities}"
             )
         else:
             # Generate detailed reason
             if doc_extraction.base_entity.lower() != query_extraction.base_entity.lower():
-                reason = (
-                    f"基础实体不匹配（文档: {doc_extraction.base_entity}, "
-                    f"查询: {query_extraction.base_entity}）"
-                )
+                reason = f"基础实体不匹配（文档: {doc_extraction.base_entity}, 查询: {query_extraction.base_entity}）"
             else:
                 missing_attrs = set(query_extraction.attributes) - set(doc_extraction.attributes)
                 reason = f"属性不匹配（文档缺少: {', '.join(missing_attrs)}）"
