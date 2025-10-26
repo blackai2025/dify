@@ -562,6 +562,22 @@ const translation = {
         name: 'Maximum Iterations',
         description: 'Limit the number of iterations an agent assistant can execute',
       },
+      clearHistoryToolResponse: {
+        name: 'Clear History Tool Response',
+        description: 'Clear the history of tool responses before next LLM call',
+      },
+      keepUserQueryAsKbQuery: {
+        name: 'Keep User Input as KB Query',
+        description: 'Keep the user input as the KB query',
+      },
+      forceRag: {
+        name: 'Force RAG',
+        description: 'Force the agent to execute RAG',
+      },
+      putRecallIntoSystemPrompt: {
+        name: 'Put Recall into System Prompt',
+        description: 'Put the recall result into the system prompt',
+      },
     },
     buildInPrompt: 'Build-In Prompt',
     firstPrompt: 'First Prompt',

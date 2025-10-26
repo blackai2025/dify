@@ -84,6 +84,10 @@ class AgentEntity(BaseModel):
     prompt: AgentPromptEntity | None = None
     tools: list[AgentToolEntity] | None = None
     max_iteration: int = 10
+    clear_history_tool_response: bool = False
+    keep_user_query_as_kb_query: bool = False
+    force_rag: bool = False
+    put_recall_into_system_prompt: bool = False
 
 
 class AgentInvokeMessage(ToolInvokeMessage):
