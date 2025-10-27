@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: T201
 """
 Quick verification script for multiple recall and filtering strategies.
 

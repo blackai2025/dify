@@ -127,14 +127,7 @@ class EntityExtraction:
                             matched_doc_attr = doc_attr
                             break
 
-            if matched:
-                logger.debug(
-                    "[FILTER_LOADER] ✓ Attribute match (%s): query='%s' <-> doc='%s'",
-                    match_type,
-                    query_attr,
-                    matched_doc_attr,
-                )
-            else:
+            if not matched:
                 logger.info(
                     "[FILTER_LOADER] ✗ No match: query attribute '%s' not found in doc attributes %s",
                     query_attr,
@@ -368,7 +361,6 @@ class FilterRuleLoader:
                 # Case-insensitive matching for flexibility
                 pattern = re.compile(pattern_str, re.IGNORECASE)
                 patterns.append((entity, pattern))
-                logger.debug("[FILTER_LOADER] Compiled pattern for '%s': %s", entity, pattern_str)
             except re.error as e:
                 logger.warning("[FILTER_LOADER] Failed to compile pattern for '%s': %s", entity, e)
 
@@ -412,7 +404,6 @@ class FilterRuleLoader:
             try:
                 pattern = re.compile(pattern_str, re.IGNORECASE)
                 patterns.append((attr_name, attr_type, pattern))
-                logger.debug("[FILTER_LOADER] Compiled attribute pattern for '%s' (%s)", attr_name, attr_type)
             except re.error as e:
                 logger.warning("[FILTER_LOADER] Failed to compile attribute pattern for '%s': %s", attr_name, e)
 
@@ -524,7 +515,6 @@ class FilterRuleLoader:
                             all_entities.append(entity)
                             entity_spans.append((start, end))
                             seen_positions.update(range(start, end))
-                            logger.debug("[FILTER_LOADER] Extracted entity '%s' at %s", entity, (start, end))
             else:
                 # Extract single entity with best match (prefer exact/longer matches)
                 # Collect all potential matches and score them
@@ -550,15 +540,6 @@ class FilterRuleLoader:
                         # - Penalize length mismatch from entity
                         score = (1000 if is_exact else 0) + matched_length - abs(matched_length - entity_length)
                         candidates.append((entity, match, score, start, end))
-                        logger.debug(
-                            "[FILTER_LOADER] Candidate entity '%s' at %s-%s, matched='%s', score=%d (exact=%s)",
-                            entity,
-                            start,
-                            end,
-                            matched_text,
-                            score,
-                            is_exact,
-                        )
 
                 # Remove overlapping candidates: for overlapping matches, keep only the longest one
                 if candidates:
@@ -574,24 +555,11 @@ class FilterRuleLoader:
                         if not any(pos in used_positions for pos in range(start, end)):
                             non_overlapping.append((entity, match, score))
                             used_positions.update(range(start, end))
-                            logger.debug(
-                                "[FILTER_LOADER] Kept non-overlapping entity '%s' at %s-%s (score=%d)",
-                                entity,
-                                start,
-                                end,
-                                score,
-                            )
                     
                     if non_overlapping:
                         best_entity, best_match, best_score = non_overlapping[0]
                         all_entities = [best_entity]
                         entity_spans = [best_match.span()]
-                        logger.debug(
-                            "[FILTER_LOADER] Selected best entity '%s' at %s (score=%d)",
-                            best_entity,
-                            best_match.span(),
-                            best_score,
-                        )
 
         # Use the first entity as base_entity (for backward compatibility)
         base_entity = all_entities[0] if all_entities else None
@@ -607,7 +575,6 @@ class FilterRuleLoader:
                 for match in pattern.finditer(text):
                     start, end = match.span()
                     matches.append((start, end, attr_name))
-                    logger.debug("[FILTER_LOADER] Found attribute '%s' (%s) at %s-%s", attr_name, attr_type, start, end)
 
             # Deduplicate by position
             if matches:
@@ -736,7 +703,6 @@ class FilterRuleLoader:
                 for suffix in type_suffixes[attr_type]:
                     candidate = f"{number}{suffix}"
                     if candidate == attr_name:
-                        logger.debug("[FILTER_LOADER] Number '%s' + suffix '%s' → '%s'", number, suffix, attr_name)
                         return attr_name
 
         return None
@@ -784,7 +750,6 @@ class FilterRuleLoader:
             for match in pattern.finditer(text):
                 start, end = match.span()
                 matches.append((start, end, entity))
-                logger.debug("[FILTER_LOADER] Found '%s' at position %s-%s", entity, start, end)
 
         if not matches:
             return []
@@ -802,9 +767,6 @@ class FilterRuleLoader:
             if not overlap:
                 selected_matches.append(entity)
                 covered_positions.update(range(start, end))
-                logger.debug("[FILTER_LOADER] Selected entity '%s' at %s-%s", entity, start, end)
-            else:
-                logger.debug("[FILTER_LOADER] Skipped overlapping '%s' at %s-%s", entity, start, end)
 
         return selected_matches
 

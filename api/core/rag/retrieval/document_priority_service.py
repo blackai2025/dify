@@ -36,22 +36,22 @@ class DocumentPriorityService:
         if not documents:
             return documents
 
-        logger.info(f"[PRIORITY] Starting priority boost for {len(documents)} documents")
+        logger.info("[PRIORITY] Starting priority boost for %s documents", len(documents))
 
         # Extract unique document IDs from metadata (using "document_id", not "doc_id")
-        doc_ids = list(set(doc.metadata.get("document_id") for doc in documents if doc.metadata.get("document_id")))
+        doc_ids = list({doc.metadata.get("document_id") for doc in documents if doc.metadata.get("document_id")})
 
-        logger.info(f"[PRIORITY] Extracted {len(doc_ids)} unique document IDs")
+        logger.info("[PRIORITY] Extracted %s unique document IDs", len(doc_ids))
 
         if not doc_ids:
             logger.warning("[PRIORITY] No document_id found in metadata, skipping priority boost")
             if documents:
-                logger.warning(f"[PRIORITY] First doc metadata keys: {list(documents[0].metadata.keys())}")
+                logger.warning("[PRIORITY] First doc metadata keys: %s", list(documents[0].metadata.keys()))
             return documents
 
         # Fetch document names from database in bulk
         doc_name_map = cls._fetch_document_names(doc_ids, dataset_id)
-        logger.info(f"[PRIORITY] Fetched {len(doc_name_map)} document names from database")
+        logger.info("[PRIORITY] Fetched %s document names from database", len(doc_name_map))
 
         if not doc_name_map:
             logger.warning("[PRIORITY] No document names found in database")
@@ -77,13 +77,13 @@ class DocumentPriorityService:
                     doc.metadata["priority_boost_value"] = boost
                     doc.metadata["document_name"] = doc_name  # Add for debugging
                     boosted_count += 1
-                    logger.info(f"[PRIORITY] Boosted '{doc_name}': {current_score:.4f} → {new_score:.4f} (+{boost})")
+                    logger.info("[PRIORITY] Boosted '%s': %.4f → %.4f (+%s)", doc_name, current_score, new_score, boost)
                 else:
                     logger.debug("[PRIORITY] '%s': score=%s (not numeric)", doc_name, current_score)
             else:
                 logger.debug("[PRIORITY] '%s': boost=0 (no match)", doc_name)
 
-        logger.info(f"[PRIORITY] Applied boost to {boosted_count}/{len(documents)} documents")
+        logger.info("[PRIORITY] Applied boost to %s/%s documents", boosted_count, len(documents))
 
         # Re-sort documents by score (descending)
         documents.sort(key=lambda d: d.metadata.get("score", 0.0), reverse=True)
@@ -115,10 +115,15 @@ class DocumentPriorityService:
                 results = session.execute(stmt).all()
                 result_map = {str(row.id): row.name for row in results if row.name}
                 logger.info(
-                    f"[PRIORITY] Database query: {len(doc_ids)} IDs → {len(results)} rows → {len(result_map)} with names"
+                    "[PRIORITY] Database query: %s IDs → %s rows → %s with names",
+                    len(doc_ids),
+                    len(results),
+                    len(result_map),
                 )
                 if not result_map and doc_ids:
-                    logger.warning(f"[PRIORITY] No names found for dataset_id={dataset_id}, sample doc_id={doc_ids[0]}")
+                    logger.warning(
+                        "[PRIORITY] No names found for dataset_id=%s, sample doc_id=%s", dataset_id, doc_ids[0]
+                    )
                 return result_map
         except Exception as e:
             logger.error("[PRIORITY] Database query failed: %s", e, exc_info=True)
