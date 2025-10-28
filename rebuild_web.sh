@@ -1,7 +1,7 @@
 #!/bin/bash
 # 重新构建和启动前端服务
 
-cd /Users/sunfuwei/IdeaProjects/dify-1/docker
+cd /Users/sunfuwei/IdeaProjects/dify/docker
 
 echo "🔨 停止现有服务..."
 docker-compose stop web
