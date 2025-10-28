@@ -70,13 +70,14 @@ class EntityExtraction:
             return self._attributes_match(self.attributes, other.attributes)
 
         # 2. 检查缩写匹配（查询是否是文档的缩写）
+        # 例如：查询 "p20up" 可以匹配文档 "P20 Ultra Plus"
         if self._is_abbreviation_match(query_lower, doc_lower):
             # 缩写匹配时，查询属性也必须满足
             return self._attributes_match(self.attributes, other.attributes)
 
-        # 3. 检查反向缩写匹配（文档是否是查询的缩写）
-        if self._is_abbreviation_match(doc_lower, query_lower):
-            return self._attributes_match(self.attributes, other.attributes)
+        # 注意：不支持反向缩写匹配（文档是查询的缩写）
+        # 例如：查询 "P20UP" 不应该匹配文档 "P20"
+        # 因为它们是不同的产品型号
 
         return False
 
