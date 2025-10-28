@@ -94,6 +94,36 @@ class RetrievalService:
 
         return result
 
+    @staticmethod
+    def _deduplicate_documents(documents: list[Document]) -> list[Document]:
+        """
+        Deduplicate documents from hybrid search results.
+        Keep the first occurrence of each document (by page_content).
+
+        Args:
+            documents: List of documents that may contain duplicates
+
+        Returns:
+            List of documents with duplicates removed
+        """
+        seen = set()
+        deduped = []
+
+        for doc in documents:
+            # Use page_content as the unique identifier
+            content_hash = hash(doc.page_content)
+
+            if content_hash not in seen:
+                seen.add(content_hash)
+                deduped.append(doc)
+            else:
+                rag_logger.debug(
+                    f"[DEDUP] Removed duplicate document: {doc.page_content[:100] if len(doc.page_content) > 100 else doc.page_content}"
+                )
+
+        rag_logger.info(f"[DEDUP] Deduplicated {len(documents)} → {len(deduped)} documents")
+        return deduped
+
     @classmethod
     def retrieve(
         cls,
