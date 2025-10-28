@@ -9,6 +9,7 @@ import Button from '@/app/components/base/button'
 import { CuteRobot } from '@/app/components/base/icons/src/vender/solid/communication'
 import { Unblur } from '@/app/components/base/icons/src/vender/solid/education'
 import Slider from '@/app/components/base/slider'
+import Switch from '@/app/components/base/switch'
 import type { AgentConfig } from '@/models/debug'
 import { DEFAULT_AGENT_PROMPT, MAX_ITERATIONS_NUM } from '@/config'
 
@@ -127,6 +128,78 @@ const AgentSetting: FC<Props> = ({
                   })
                 }} />
             </div>
+          </ItemPanel>
+
+          <ItemPanel
+            className='mb-4'
+            icon={ <CuteRobot className='h-4 w-4 text-indigo-600' /> }
+            name={t('appDebug.agent.setting.clearHistoryToolResponse.name')}
+            description={t('appDebug.agent.setting.clearHistoryToolResponse.description')}
+          >
+            <Switch
+              defaultValue={tempPayload.clear_history_tool_response}
+              size='md'
+              onChange={(value) => {
+                setTempPayload({
+                  ...tempPayload,
+                  clear_history_tool_response: value,
+                })
+              }}
+            />
+          </ItemPanel>
+
+          <ItemPanel
+            className='mb-4'
+            icon={ <CuteRobot className='h-4 w-4 text-indigo-600' /> }
+            name={t('appDebug.agent.setting.keepUserQueryAsKbQuery.name')}
+            description={t('appDebug.agent.setting.keepUserQueryAsKbQuery.description')}
+          >
+            <Switch
+              defaultValue={tempPayload.keep_user_query_as_kb_query}
+              size='md'
+              onChange={(value) => {
+                setTempPayload({
+                  ...tempPayload,
+                  keep_user_query_as_kb_query: value,
+                })
+              }}
+            />
+          </ItemPanel>
+
+          <ItemPanel
+            className='mb-4'
+            icon={ <CuteRobot className='h-4 w-4 text-indigo-600' /> }
+            name={t('appDebug.agent.setting.forceRag.name')}
+            description={t('appDebug.agent.setting.forceRag.description')}
+          >
+            <Switch
+              defaultValue={tempPayload.force_rag}
+              size='md'
+              onChange={(value) => {
+                setTempPayload({
+                  ...tempPayload,
+                  force_rag: value,
+                })
+              }}
+            />
+          </ItemPanel>
+
+          <ItemPanel
+            className='mb-4'
+            icon={ <CuteRobot className='h-4 w-4 text-indigo-600' /> }
+            name={t('appDebug.agent.setting.putRecallIntoSystemPrompt.name')}
+            description={t('appDebug.agent.setting.putRecallIntoSystemPrompt.description')}
+          >
+            <Switch
+              defaultValue={tempPayload.put_recall_into_system_prompt}
+              size='md'
+              onChange={(value) => {
+                setTempPayload({
+                  ...tempPayload,
+                  put_recall_into_system_prompt: value,
+                })
+              }}
+            />
           </ItemPanel>
 
           {!isFunctionCall && (

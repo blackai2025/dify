@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from collections.abc import Generator
 from copy import deepcopy
 from typing import Any, Union
@@ -121,7 +122,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                     # check if there is any tool call
                     if self.check_tool_calls(chunk):
                         function_call_state = True
-                        tool_calls.extend(self.extract_tool_calls(chunk) or [])
+                        tool_calls.extend(self._adjust_rag_query(self.extract_tool_calls(chunk) or [], self.query))
                         tool_call_names = ";".join([tool_call[1] for tool_call in tool_calls])
                         try:
                             tool_call_inputs = json.dumps(
@@ -148,7 +149,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 # check if there is any tool call
                 if self.check_blocking_tool_calls(result):
                     function_call_state = True
-                    tool_calls.extend(self.extract_blocking_tool_calls(result) or [])
+                    tool_calls.extend(self._adjust_rag_query(self.extract_tool_calls(result) or [], self.query))
                     tool_call_names = ";".join([tool_call[1] for tool_call in tool_calls])
                     try:
                         tool_call_inputs = json.dumps(
@@ -188,6 +189,10 @@ class FunctionCallAgentRunner(BaseAgentRunner):
                 )
 
             assistant_message = AssistantPromptMessage(content="", tool_calls=[])
+
+            if len(response) == 0 and self.app_config.agent.force_rag:
+                tool_calls = self._add_rag_call(tool_instances, tool_calls, self.query)
+
             if tool_calls:
                 assistant_message.tool_calls = [
                     AssistantPromptMessage.ToolCall(
@@ -458,7 +463,8 @@ class FunctionCallAgentRunner(BaseAgentRunner):
             memory=self.memory,
         ).get_prompt()
 
-        prompt_messages = [*self.history_prompt_messages, *query_prompt_messages, *self._current_thoughts]
+        clear_tool_history_prompt_messages = self._clear_tool_prompt_messages(self.history_prompt_messages)
+        prompt_messages = [*clear_tool_history_prompt_messages, *query_prompt_messages, *self._current_thoughts]
         if len(self._current_thoughts) != 0:
             # clear messages after the first iteration
             prompt_messages = self._clear_user_prompt_image_messages(prompt_messages)
@@ -478,3 +484,34 @@ class FunctionCallAgentRunner(BaseAgentRunner):
         ]
 
         return prompt_messages_cleared
+
+    def _adjust_rag_query(self, tool_calls, query):
+        if self.app_config.agent.keep_user_query_as_kb_query:
+            for tool_call in tool_calls:
+                if "query" in tool_call[2] and tool_call[1].startswith("dataset_"):
+                    tool_call[2]["query"] = query
+
+        return tool_calls
+
+    def _add_rag_call(self, tool_instances, tool_calls, query):
+        if not self.app_config.agent.force_rag:
+            return tool_calls
+
+        # Check if any dataset tools were already called
+        kb_tools_called = any(tool_call[1].startswith("dataset_") for tool_call in tool_calls)
+
+        if not kb_tools_called:
+            # Manually add knowledge base tool calls
+            for tool_name, tool_instance in tool_instances.items():
+                if (
+                    hasattr(tool_instance, "entity")
+                    and hasattr(tool_instance.entity, "identity")
+                    and tool_instance.entity.identity.name.startswith("dataset_")
+                ):
+                    # Create a tool call for KB retrieval
+                    tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
+                    tool_call_args = {"query": query}
+                    tool_calls.append((tool_call_id, tool_name, tool_call_args))
+                    logger.info("Force RAG: Added KB tool call for %s", tool_name)
+
+        return tool_calls

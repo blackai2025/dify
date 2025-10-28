@@ -556,6 +556,22 @@ const translation = {
         name: '最大迭代次数',
         description: '限制代理型助手执行迭代的次数',
       },
+      clearHistoryToolResponse: {
+        name: '清除工具响应历史',
+        description: '在每次 LLM 调用前清除工具响应历史',
+      },
+      keepUserQueryAsKbQuery: {
+        name: '将用户输入作为知识库查询',
+        description: '将用户输入作为知识库查询',
+      },
+      forceRag: {
+        name: '强制执行 RAG',
+        description: '强制执行 RAG',
+      },
+      putRecallIntoSystemPrompt: {
+        name: '将召回结果放入系统提示词',
+        description: '将召回结果放入系统提示词',
+      },
     },
     buildInPrompt: '内置提示词',
     firstPrompt: '第一次提示词',

@@ -37,7 +37,11 @@ class WeightRerankRunner(BaseRerankRunner):
         """
         unique_documents = []
         doc_ids = set()
+        seen_contents = set()
         for document in documents:
+            if document.page_content in seen_contents:
+                continue
+            seen_contents.add(document.page_content)
             if (
                 document.provider == "dify"
                 and document.metadata is not None
