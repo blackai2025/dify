@@ -8,7 +8,7 @@
 ### 方式 1：使用环境变量启动（推荐）
 
 ```bash
-cd /Users/sunfuwei/IdeaProjects/dify-1/api
+cd /Users/sunfuwei/IdeaProjects/dify/api
 
 # 设置 CORS 环境变量后启动
 CONSOLE_CORS_ALLOW_ORIGINS="*" uv run --project api --dev flask run --host 0.0.0.0 --port 5001 --debug
@@ -19,7 +19,7 @@ CONSOLE_CORS_ALLOW_ORIGINS="*" uv run --project api --dev flask run --host 0.0.0
 在 `api/` 目录下创建 `.env` 文件（如果不存在）：
 
 ```bash
-cd /Users/sunfuwei/IdeaProjects/dify-1/api
+cd /Users/sunfuwei/IdeaProjects/dify/api
 
 # 创建或编辑 .env 文件
 cat >> .env << 'EOF'

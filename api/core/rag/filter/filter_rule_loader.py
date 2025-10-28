@@ -309,12 +309,13 @@ class FilterRuleLoader:
         cls._base_entity_patterns = cls._build_patterns(base_entities)
         cls._attribute_patterns = cls._build_attribute_patterns(attribute_names, attributes)
 
-        # Build rules cache for compatibility
-        rules = [{"entity": e} for e in base_entities]
-        cls._rules_cache = rules
+        # Sort entities by name length, descending, to prioritize longer matches
+        all_entities = base_entities + attribute_names
+        all_entities.sort(key=lambda x: len(x), reverse=True)
 
-        logger.info("[FILTER_LOADER] Loaded %d base entities, %d attributes", len(base_entities), len(attributes))
-        return rules
+        cls._rules_cache = all_entities
+        logger.info(f"[FILTER_LOADER] Loaded and cached {len(cls._rules_cache)} filter rules.")
+        return cls._rules_cache
 
     @classmethod
     def _build_patterns(cls, entities: list[str]) -> list[tuple[str, re.Pattern]]:
