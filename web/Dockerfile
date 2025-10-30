@@ -10,6 +10,10 @@ RUN npm config set registry https://registry.npmmirror.com
 
 RUN apk add --no-cache tzdata
 RUN corepack enable
+
+# Set corepack to use China mirror for downloading pnpm
+ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_PUBLIC_BASE_PATH=

@@ -88,12 +88,6 @@ class AgentEntity(BaseModel):
     keep_user_query_as_kb_query: bool = False
     force_rag: bool = False
     put_recall_into_system_prompt: bool = False
-    always_trigger_rag: bool = Field(
-        default=False,
-        description="Always trigger RAG at the beginning of each user message. "
-        "The LLM will generate an optimized query based on conversation context, "
-        "then perform RAG retrieval and inject results into the first iteration."
-    )
 
 
 class AgentInvokeMessage(ToolInvokeMessage):

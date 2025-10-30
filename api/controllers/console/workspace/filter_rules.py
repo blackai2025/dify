@@ -218,4 +218,3 @@ class FilterRuleEntityApi(Resource):
 # Register routes
 api.add_resource(FilterRulesApi, "/workspaces/current/filter-rules")
 api.add_resource(FilterRuleEntityApi, "/workspaces/current/filter-rules/entity")
-
