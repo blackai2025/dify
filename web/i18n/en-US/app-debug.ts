@@ -578,10 +578,6 @@ const translation = {
         name: 'Put Recall into System Prompt',
         description: 'Put the recall result into the system prompt',
       },
-      alwaysTriggerRag: {
-        name: 'Always Trigger RAG',
-        description: 'Always trigger RAG at the beginning of each user message. The LLM will generate an optimized query based on conversation context, then perform RAG retrieval and inject results into the first iteration.',
-      },
     },
     buildInPrompt: 'Build-In Prompt',
     firstPrompt: 'First Prompt',

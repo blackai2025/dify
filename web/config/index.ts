@@ -211,7 +211,6 @@ export const DEFAULT_AGENT_SETTING = {
   keep_user_query_as_kb_query: false,
   force_rag: false,
   put_recall_into_system_prompt: false,
-  always_trigger_rag: false,
   tools: [],
 }
 

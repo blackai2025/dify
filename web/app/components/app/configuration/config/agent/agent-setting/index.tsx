@@ -12,6 +12,8 @@ import Slider from '@/app/components/base/slider'
 import Switch from '@/app/components/base/switch'
 import type { AgentConfig } from '@/models/debug'
 import { DEFAULT_AGENT_PROMPT, MAX_ITERATIONS_NUM } from '@/config'
+import ModelSelector from '@/app/components/header/account-setting/model-provider-page/model-selector'
+import { useTextGenerationCurrentProviderAndModelAndModelList } from '@/app/components/header/account-setting/model-provider-page/hooks'
 
 type Props = {
   isChatModel: boolean
@@ -34,15 +36,29 @@ const AgentSetting: FC<Props> = ({
   const [tempPayload, setTempPayload] = useState(payload)
   const ref = useRef(null)
   const [mounted, setMounted] = useState(false)
+  
+  // Get text generation model list for query rewrite model selector
+  const { textGenerationModelList } = useTextGenerationCurrentProviderAndModelAndModelList()
 
-  useClickAway(() => {
-    if (mounted)
-      onCancel()
+  useClickAway((event) => {
+    if (!mounted)
+      return
+    
+    // Exclude clicks on ModelSelector popup (which is rendered in a Portal)
+    const target = event.target as HTMLElement
+    if (target.closest('[data-model-selector-popup="true"]'))
+      return
+    
+    onCancel()
   }, ref)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    setTempPayload(payload)
+  }, [payload])
 
   const handleSave = () => {
     onSave(tempPayload)
@@ -197,24 +213,6 @@ const AgentSetting: FC<Props> = ({
                 setTempPayload({
                   ...tempPayload,
                   put_recall_into_system_prompt: value,
-                })
-              }}
-            />
-          </ItemPanel>
-
-          <ItemPanel
-            className='mb-4'
-            icon={ <CuteRobot className='h-4 w-4 text-indigo-600' /> }
-            name={t('appDebug.agent.setting.alwaysTriggerRag.name')}
-            description={t('appDebug.agent.setting.alwaysTriggerRag.description')}
-          >
-            <Switch
-              defaultValue={tempPayload.always_trigger_rag}
-              size='md'
-              onChange={(value) => {
-                setTempPayload({
-                  ...tempPayload,
-                  always_trigger_rag: value,
                 })
               }}
             />

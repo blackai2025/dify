@@ -266,10 +266,7 @@ class FilterRuleService:
             rules_data.attributes = [a for a in rules_data.attributes if a.name != name]
 
             # Check if anything was deleted
-            if (
-                len(rules_data.entities) == original_entity_count
-                and len(rules_data.attributes) == original_attr_count
-            ):
+            if len(rules_data.entities) == original_entity_count and len(rules_data.attributes) == original_attr_count:
                 logger.warning("[FILTER_RULE_SERVICE] Entity not found: %s", name)
                 return False
 
@@ -352,4 +349,3 @@ class FilterRuleService:
             logger.info("[FILTER_RULE_SERVICE] Cleared FilterRuleLoader cache")
         except Exception:
             logger.exception("[FILTER_RULE_SERVICE] Failed to clear cache")
-

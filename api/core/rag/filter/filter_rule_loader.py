@@ -214,36 +214,40 @@ class EntityExtraction:
         if abbrev_no_space == expected_full:
             return True
 
-        # 情况2：首字母缩写（如 "p20up" 匹配 "p20 ultra plus"）
-        # 检查剩余部分是否匹配后续单词的首字母
+        # 情况2：完整首字母缩写（如 "p20up" 匹配 "p20 ultra plus"）
+        # IMPORTANT: 必须匹配所有单词的首字母，不能部分匹配
         if len(after_first) == len(rest_words):
             # 每个字符应该匹配对应单词的首字母
             return all(char == rest_words[i][0] for i, char in enumerate(after_first))
 
-        # 情况3：部分缩写（如 "p20u" 匹配 "p20 ultra plus"）
-        # 检查是否匹配前N个单词的首字母
-        if len(after_first) < len(rest_words) and after_first:
-            return all(char == rest_words[i][0] for i, char in enumerate(after_first))
-
-        # 情况4：混合形式（如 "p20ultra" 匹配 "p20 ultra plus"）
-        # 检查是否匹配部分完整单词
+        # 情况3：混合形式（如 "p20ultraplus" 或 "p20up" 匹配 "p20 ultra plus"）
+        # CRITICAL: 必须完全消耗所有单词，不能部分匹配
+        # 正确示例：
+        #   "p20ultraplus" vs "p20 ultra plus" → True (完整单词匹配)
+        #   "p20up" vs "p20 ultra plus" → True (已在情况2处理)
+        # 错误示例（必须拒绝）：
+        #   "p20ultra" vs "p20 ultra plus" → False (缺少 plus)
+        #   "p20u" vs "p20 ultra plus" → False (缺少 plus 的首字母)
         remaining = after_first
-        for word in rest_words:
+        word_index = 0
+        
+        while remaining and word_index < len(rest_words):
+            word = rest_words[word_index]
+            
             if remaining.startswith(word):
                 # 完整单词匹配
-                remaining = remaining[len(word) :]
-            elif remaining and remaining[0] == word[0]:
+                remaining = remaining[len(word):]
+                word_index += 1
+            elif remaining[0] == word[0]:
                 # 首字母匹配
                 remaining = remaining[1:]
+                word_index += 1
             else:
                 # 不匹配
                 return False
-
-            if not remaining:
-                # 已经匹配完了
-                return True
-
-        return not remaining  # 如果remaining为空，说明完全匹配
+        
+        # 必须满足：1) remaining 为空（查询全部消耗）2) 所有 rest_words 都匹配了
+        return not remaining and word_index == len(rest_words)
 
 
 class FilterRuleLoader:
@@ -319,9 +323,30 @@ class FilterRuleLoader:
         return cls._rules_cache
 
     @classmethod
+    def _normalize_text(cls, text: str) -> str:
+        """
+        Normalize text by removing spaces and converting to lowercase.
+        Used for space-insensitive matching.
+        
+        Args:
+            text: Text to normalize
+            
+        Returns:
+            Normalized text (lowercase, no spaces)
+        """
+        return text.replace(" ", "").lower()
+    
+    @classmethod
     def _build_patterns(cls, entities: list[str]) -> list[tuple[str, re.Pattern]]:
         """
         Build regex patterns for entity list.
+        
+        Space-agnostic approach: Match entities ignoring all spaces.
+        Examples:
+        - Entity "P20 Ultra" matches: "P20Ultra", "P20 Ultra", "p20ultra", "p 20 ultra"
+        - Entity "P20UP" matches: "P20UP", "P20 UP", "p20up", "p 20 up"
+        
+        Strategy: Insert \s* between every character to allow optional spaces anywhere.
 
         Args:
             entities: List of entity names (already sorted by length)
@@ -332,35 +357,44 @@ class FilterRuleLoader:
         patterns = []
 
         for entity in entities:
-            # Build pattern that matches the entity
-            # Support both "P20 Plus" and "P20Plus" (with/without space)
+            # Remove spaces from entity to get the core pattern
+            entity_no_space = entity.replace(" ", "")
+            
+            # Build pattern: insert \s* between every character
+            # This allows matching with any spacing: "P20UP", "P20 UP", "P 20 U P", etc.
+            pattern_parts = []
+            for i, char in enumerate(entity_no_space):
+                if i > 0:
+                    pattern_parts.append(r'\s*')  # Optional spaces before each char (except first)
+                pattern_parts.append(re.escape(char))
+            
+            # Add word boundaries to prevent partial matches
+            pattern_str = rf"(?<![a-zA-Z0-9]){''.join(pattern_parts)}(?![a-zA-Z0-9])"
+            
+            # Also support abbreviations for multi-word entities (like "P20 Ultra" → "P20U")
+            # This is handled separately in the matching logic
             if " " in entity:
-                # Has space: create pattern matching both forms
                 parts = entity.split(" ")
-                base = re.escape(parts[0])
-
-                # For multi-word entities, match with optional spaces and abbreviations
-                rest_patterns = []
-                for part in parts[1:]:
-                    escaped_part = re.escape(part)
-                    # Match: " Plus" or "Plus" (no space) or "+" (abbreviation)
-                    # Use word boundary to prevent partial matches like "p20u" matching "P20 Ultra"
-                    abbrev = cls._get_abbreviation(part)
-                    if abbrev:
-                        # For abbreviations: support optional space + (full word OR abbreviation with boundary)
-                        # Require word boundary after abbreviation to avoid matching "p20u" as "P20 Ultra"
-                        rest_patterns.append(f"(?:\\s*{escaped_part}|\\s*{re.escape(abbrev)}(?![a-z0-9]))")
-                    else:
-                        rest_patterns.append(f"(?:\\s*{escaped_part})")
-
-                # Match entity with boundaries (not preceded/followed by alphanumeric)
-                pattern_str = rf"{base}{''.join(rest_patterns)}"
-            else:
-                # Simple entity without spaces - add word boundary at the end
-                pattern_str = rf"{re.escape(entity)}(?![a-zA-Z0-9])"
+                if len(parts) > 1:
+                    # Add alternative pattern for abbreviations
+                    # e.g., "P20 Ultra Plus" can match "P20UP" (first word + initials)
+                    base = parts[0].replace(" ", "")
+                    initials = "".join(word[0] for word in parts[1:])
+                    
+                    # Build abbreviation pattern with optional spaces
+                    abbrev_parts = []
+                    for char in base + initials:
+                        if abbrev_parts:
+                            abbrev_parts.append(r'\s*')
+                        abbrev_parts.append(re.escape(char))
+                    
+                    abbrev_pattern_str = rf"(?<![a-zA-Z0-9]){''.join(abbrev_parts)}(?![a-zA-Z0-9])"
+                    
+                    # Combine both patterns with OR
+                    pattern_str = f"(?:{pattern_str}|{abbrev_pattern_str})"
 
             try:
-                # Case-insensitive matching for flexibility
+                # Case-insensitive matching
                 pattern = re.compile(pattern_str, re.IGNORECASE)
                 patterns.append((entity, pattern))
             except re.error as e:
@@ -529,35 +563,39 @@ class FilterRuleLoader:
                         entity_length = len(entity)
                         matched_text = text[start:end]
 
-                        # Check for exact match (consider both with and without spaces)
-                        # 1. Matched text == entity (exact, with spaces preserved)
-                        # 2. Matched text == entity without spaces (variant form like "P20Ultra" for "P20 Ultra")
+                        # Check for exact match (normalize both by removing spaces)
                         entity_no_space = entity.replace(" ", "").lower()
                         matched_no_space = matched_text.replace(" ", "").lower()
-                        is_exact = (matched_text.lower() == entity.lower()) or (matched_no_space == entity_no_space)
+                        
+                        # CRITICAL: Only consider it a match if normalized lengths are equal
+                        # This prevents "p20ultra" from matching "P20 Ultra Plus"
+                        if len(matched_no_space) != len(entity_no_space):
+                            continue  # Skip this candidate - not a valid match
+                        
+                        is_exact = matched_no_space == entity_no_space
 
                         # Scoring:
-                        # - Exact match gets highest priority (score +1000)
-                        # - Prefer longer matches (matched_length bonus)
-                        # - Penalize length mismatch from entity
-                        score = (1000 if is_exact else 0) + matched_length - abs(matched_length - entity_length)
+                        # - Exact normalized match gets highest priority (score +1000)
+                        # - Prefer longer entity names (entity_length bonus)
+                        # - Prefer longer matched text
+                        score = (1000 if is_exact else 0) + len(entity_no_space) + matched_length
                         candidates.append((entity, match, score, start, end))
 
                 # Remove overlapping candidates: for overlapping matches, keep only the longest one
                 if candidates:
                     # Sort by score (descending), then by length (descending)
                     candidates.sort(key=lambda x: (x[2], x[4] - x[3]), reverse=True)
-                    
+
                     # Filter out overlapping candidates
                     non_overlapping = []
                     used_positions = set()
-                    
+
                     for entity, match, score, start, end in candidates:
                         # Check if this candidate overlaps with any already selected
                         if not any(pos in used_positions for pos in range(start, end)):
                             non_overlapping.append((entity, match, score))
                             used_positions.update(range(start, end))
-                    
+
                     if non_overlapping:
                         best_entity, best_match, best_score = non_overlapping[0]
                         all_entities = [best_entity]

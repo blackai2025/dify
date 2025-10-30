@@ -27,6 +27,7 @@ type ModelSelectorProps = {
   scopeFeatures?: string[]
   deprecatedClassName?: string
   showDeprecatedWarnIcon?: boolean
+  hideSettingsLink?: boolean
 }
 const ModelSelector: FC<ModelSelectorProps> = ({
   defaultModel,
@@ -38,6 +39,7 @@ const ModelSelector: FC<ModelSelectorProps> = ({
   scopeFeatures = [],
   deprecatedClassName,
   showDeprecatedWarnIcon = false,
+  hideSettingsLink = false,
 }) => {
   const [open, setOpen] = useState(false)
   const {
@@ -105,13 +107,17 @@ const ModelSelector: FC<ModelSelectorProps> = ({
             )
           }
         </PortalToFollowElemTrigger>
-        <PortalToFollowElemContent className={`z-[1002] ${popupClassName}`}>
+        <PortalToFollowElemContent 
+          className={`z-[1002] ${popupClassName}`}
+          data-model-selector-popup="true"
+        >
           <Popup
             defaultModel={defaultModel}
             modelList={modelList}
             onSelect={handleSelect}
             scopeFeatures={scopeFeatures}
             onHide={() => setOpen(false)}
+            hideSettingsLink={hideSettingsLink}
           />
         </PortalToFollowElemContent>
       </div>
