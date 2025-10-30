@@ -572,6 +572,10 @@ const translation = {
         name: '将召回结果放入系统提示词',
         description: '将召回结果放入系统提示词',
       },
+      alwaysTriggerRag: {
+        name: '每次都触发 RAG',
+        description: '在每次用户消息开始时触发 RAG。LLM 会根据对话上下文生成优化的查询，然后执行 RAG 检索并将结果注入到第一轮迭代中。',
+      },
     },
     buildInPrompt: '内置提示词',
     firstPrompt: '第一次提示词',
