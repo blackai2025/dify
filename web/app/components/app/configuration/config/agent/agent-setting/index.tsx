@@ -202,6 +202,24 @@ const AgentSetting: FC<Props> = ({
             />
           </ItemPanel>
 
+          <ItemPanel
+            className='mb-4'
+            icon={ <CuteRobot className='h-4 w-4 text-indigo-600' /> }
+            name={t('appDebug.agent.setting.alwaysTriggerRag.name')}
+            description={t('appDebug.agent.setting.alwaysTriggerRag.description')}
+          >
+            <Switch
+              defaultValue={tempPayload.always_trigger_rag}
+              size='md'
+              onChange={(value) => {
+                setTempPayload({
+                  ...tempPayload,
+                  always_trigger_rag: value,
+                })
+              }}
+            />
+          </ItemPanel>
+
           {!isFunctionCall && (
             <div className='rounded-xl bg-background-section-burn py-2 shadow-xs'>
               <div className='flex h-8 items-center px-4 text-sm font-semibold leading-6 text-text-secondary'>{t('tools.builtInPromptTitle')}</div>

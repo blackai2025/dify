@@ -79,6 +79,7 @@ class AgentConfigManager:
                     keep_user_query_as_kb_query=agent_dict.get("keep_user_query_as_kb_query", False),
                     force_rag=agent_dict.get("force_rag", False),
                     put_recall_into_system_prompt=agent_dict.get("put_recall_into_system_prompt", False),
+                    always_trigger_rag=agent_dict.get("always_trigger_rag", False),
                 )
 
         return None
