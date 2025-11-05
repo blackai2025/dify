@@ -76,6 +76,7 @@ class HitTestingService:
             reranking_mode=retrieval_model.get("reranking_mode") or "reranking_model",
             weights=retrieval_model.get("weights", None),
             document_ids_filter=document_ids_filter,
+            filter_enabled=retrieval_model.get("filter_enabled", False),
         )
 
         end = time.perf_counter()
