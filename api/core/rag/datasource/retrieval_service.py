@@ -136,6 +136,7 @@ class RetrievalService:
         reranking_mode: str = "reranking_model",
         weights: dict | None = None,
         document_ids_filter: list[str] | None = None,
+        filter_enabled: bool = False,
     ):
         if not query:
             return []
@@ -208,9 +209,8 @@ class RetrievalService:
 
         # Apply post-retrieval filtering BEFORE reranking if enabled
         # This reduces the number of documents that need to be reranked, improving efficiency
-        filter_enabled = getattr(dify_config, "RAG_FILTER_ENABLED", False)
         if filter_enabled:
-            rag_logger.info("[FILTER] Filter enabled: %s", filter_enabled)
+            rag_logger.info("[FILTER] Filter enabled")
             if all_documents:
                 try:
                     from core.rag.filter.filter_service import FilterService
@@ -231,7 +231,7 @@ class RetrievalService:
                     rag_logger.warning("[FILTER] Error applying filter: %s, continuing without filtering", e)
                     pass
         else:
-            rag_logger.debug("[FILTER] Filter disabled (RAG_FILTER_ENABLED=%s)", filter_enabled)
+            rag_logger.debug("[FILTER] Filter disabled")
 
         # Apply reranking for hybrid search AFTER filtering
         if retrieval_method == RetrievalMethod.HYBRID_SEARCH.value:

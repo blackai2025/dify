@@ -38,6 +38,7 @@ dataset_retrieval_model_fields = {
     "top_k": fields.Integer,
     "score_threshold_enabled": fields.Boolean,
     "score_threshold": fields.Float,
+    "filter_enabled": fields.Boolean,
 }
 external_retrieval_model_fields = {
     "top_k": fields.Integer,

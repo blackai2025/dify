@@ -2,7 +2,7 @@
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import useSWR, { mutate as globalMutate } from 'swr'
 import {
   RiAddLine,
   RiDownloadLine,
@@ -66,7 +66,10 @@ const FilterRulesManagement: FC = () => {
         })
         notify({ type: 'success', message: t('filterRules.updateSuccess') })
       }
+      // Refresh local data
       mutate()
+      // Trigger global refresh for all components using the same SWR key
+      globalMutate('filter-rules')
     }
     catch (err: any) {
       notify({ type: 'error', message: err.message || t('filterRules.saveFailed') })
@@ -79,7 +82,10 @@ const FilterRulesManagement: FC = () => {
     try {
       await deleteFilterEntity({ name })
       notify({ type: 'success', message: t('filterRules.deleteSuccess') })
+      // Refresh local data
       mutate()
+      // Trigger global refresh for all components using the same SWR key
+      globalMutate('filter-rules')
     }
     catch (err: any) {
       notify({ type: 'error', message: err.message || t('filterRules.deleteFailed') })

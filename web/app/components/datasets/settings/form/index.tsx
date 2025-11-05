@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMount } from 'ahooks'
 import { useTranslation } from 'react-i18next'
 import PermissionSelector from '../permission-selector'
@@ -127,6 +127,13 @@ const Form = () => {
     getMembers()
   })
 
+  // Sync retrievalConfig when currentDataset changes (e.g., after save)
+  useEffect(() => {
+    if (currentDataset?.retrieval_model_dict) {
+      setRetrievalConfig(currentDataset.retrieval_model_dict as RetrievalConfig)
+    }
+  }, [currentDataset?.retrieval_model_dict])
+
   const invalidDatasetList = useInvalidDatasetList()
   const handleSave = async () => {
     if (loading)
@@ -186,8 +193,12 @@ const Form = () => {
           }
         })
       }
-      await updateDatasetSetting(requestParams)
+      const updatedDataset = await updateDatasetSetting(requestParams)
       Toast.notify({ type: 'success', message: t('common.actionMsg.modifiedSuccessfully') })
+      // Update local state with the saved retrieval config
+      if (updatedDataset?.retrieval_model_dict) {
+        setRetrievalConfig(updatedDataset.retrieval_model_dict as RetrievalConfig)
+      }
       if (mutateDatasets) {
         await mutateDatasets()
         invalidDatasetList()
