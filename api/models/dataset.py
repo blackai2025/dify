@@ -189,6 +189,7 @@ class Dataset(Base):
             "reranking_model": {"reranking_provider_name": "", "reranking_model_name": ""},
             "top_k": 2,
             "score_threshold_enabled": False,
+            "filter_enabled": False,
         }
         return self.retrieval_model or default_retrieval_model
 

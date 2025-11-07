@@ -1,11 +1,12 @@
 'use client'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import useSWR, { mutate as globalMutate } from 'swr'
 import {
   RiAddLine,
   RiDownloadLine,
+  RiUploadLine,
 } from '@remixicon/react'
 import type { EditingEntity, FilterEntity } from './types'
 import { EntityType } from './types'
@@ -23,6 +24,7 @@ import { useToastContext } from '@/app/components/base/toast'
 const FilterRulesManagement: FC = () => {
   const { t } = useTranslation()
   const { notify } = useToastContext()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch data
   const { data, error, mutate, isLoading } = useSWR('filter-rules', fetchFilterRules)
@@ -31,6 +33,7 @@ const FilterRulesManagement: FC = () => {
   const [showModal, setShowModal] = useState(false)
   const [editingEntityType, setEditingEntityType] = useState<EntityType>(EntityType.BASE_ENTITY)
   const [editingEntity, setEditingEntity] = useState<FilterEntity | undefined>()
+  const [isImporting, setIsImporting] = useState(false)
 
   // Add entity
   const handleAddEntity = (type: EntityType) => {
@@ -48,6 +51,9 @@ const FilterRulesManagement: FC = () => {
 
   // Save entity (add or update)
   const handleSaveEntity = async (entity: EditingEntity) => {
+    // For batch add, don't show notification here - let the modal handle it
+    const isBatchAdd = entity.isNew && entity.name.match(/[,，、;；\n]+/)
+
     try {
       if (entity.isNew) {
         // Add new entity
@@ -55,7 +61,8 @@ const FilterRulesManagement: FC = () => {
           name: entity.name,
           attribute_type: entity.attribute_type,
         })
-        notify({ type: 'success', message: t('filterRules.addSuccess') })
+        if (!isBatchAdd)
+          notify({ type: 'success', message: t('filterRules.addSuccess') })
       }
       else {
         // Update existing entity
@@ -66,10 +73,15 @@ const FilterRulesManagement: FC = () => {
         })
         notify({ type: 'success', message: t('filterRules.updateSuccess') })
       }
+      // Refresh local data
       mutate()
+      // Trigger global refresh for all components using the same SWR key
+      globalMutate('filter-rules')
     }
     catch (err: any) {
-      notify({ type: 'error', message: err.message || t('filterRules.saveFailed') })
+      if (!isBatchAdd)
+        notify({ type: 'error', message: err.message || t('filterRules.saveFailed') })
+
       throw err
     }
   }
@@ -79,10 +91,95 @@ const FilterRulesManagement: FC = () => {
     try {
       await deleteFilterEntity({ name })
       notify({ type: 'success', message: t('filterRules.deleteSuccess') })
+      // Refresh local data
       mutate()
+      // Trigger global refresh for all components using the same SWR key
+      globalMutate('filter-rules')
     }
     catch (err: any) {
       notify({ type: 'error', message: err.message || t('filterRules.deleteFailed') })
+    }
+  }
+
+  // Import from CSV
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.name.endsWith('.csv')) {
+      notify({ type: 'error', message: t('filterRules.invalidFileType') })
+      return
+    }
+
+    setIsImporting(true)
+
+    try {
+      const text = await file.text()
+      const lines = text.split('\n').filter(line => line.trim())
+
+      // Skip header line
+      const dataLines = lines.slice(1)
+
+      if (dataLines.length === 0) {
+        notify({ type: 'error', message: t('filterRules.emptyFile') })
+        return
+      }
+
+      let successCount = 0
+      let failedCount = 0
+
+      for (const line of dataLines) {
+        // Parse CSV line (simple implementation, handles basic cases)
+        const [name, attributeType] = line.split(',').map(s => s.trim())
+
+        if (!name) continue
+
+        try {
+          await addFilterEntity({
+            name,
+            attribute_type: attributeType || undefined,
+          })
+          successCount++
+        }
+        catch {
+          failedCount++
+        }
+      }
+
+      // Refresh data
+      mutate()
+      globalMutate('filter-rules')
+
+      // Show result
+      if (failedCount === 0) {
+        notify({
+          type: 'success',
+          message: t('filterRules.importSuccess', { count: successCount }),
+        })
+      }
+      else {
+        notify({
+          type: 'warning',
+          message: t('filterRules.importPartialFailed', {
+            success: successCount,
+            failed: failedCount,
+          }),
+        })
+      }
+    }
+    catch {
+      notify({ type: 'error', message: t('filterRules.importFailed') })
+    }
+    finally {
+      setIsImporting(false)
+      // Reset file input
+      if (fileInputRef.current)
+        fileInputRef.current.value = ''
     }
   }
 
@@ -92,7 +189,8 @@ const FilterRulesManagement: FC = () => {
       return
 
     const allItems = [...data.entities, ...data.attributes]
-    const csvContent = `实体,属性类型\n${allItems.map(item => `${item.name},${item.attribute_type || ''}`).join('\n')}`
+    const csvRows = allItems.map(item => `${item.name},${item.attribute_type || ''}`)
+    const csvContent = `实体,属性类型\n${csvRows.join('\n')}`
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -128,6 +226,22 @@ const FilterRulesManagement: FC = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <Button
+              variant="secondary"
+              onClick={handleImportClick}
+              disabled={isLoading || isImporting}
+              loading={isImporting}
+            >
+              <RiUploadLine className="mr-1 h-4 w-4" />
+              {t('filterRules.import')}
+            </Button>
             <Button
               variant="secondary"
               onClick={handleExport}

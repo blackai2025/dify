@@ -876,7 +876,10 @@ class RagConfig(BaseSettings):
     )
 
     RAG_RETRIEVAL_TOP_K_MULTIPLIER: float = Field(
-        description="Multiplier for top_k during retrieval phase (e.g., 3.0 means retrieve 3x documents before filtering)",
+        description=(
+            "Multiplier for top_k during retrieval phase "
+            "(e.g., 3.0 means retrieve 3x documents before filtering)"
+        ),
         default=3.0,
         ge=1.0,
         le=10.0,

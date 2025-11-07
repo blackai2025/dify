@@ -186,6 +186,7 @@ export type DatasetConfigs = {
   metadata_filtering_mode?: MetadataFilteringModeEnum
   metadata_filtering_conditions?: MetadataFilteringConditions
   metadata_model_config?: NodeModelConfig
+  filter_enabled?: boolean
 }
 
 export type DebugRequestBody = {

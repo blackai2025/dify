@@ -24,6 +24,7 @@ type PopupProps = {
   onSelect: (provider: string, model: ModelItem) => void
   scopeFeatures?: string[]
   onHide: () => void
+  hideSettingsLink?: boolean
 }
 const Popup: FC<PopupProps> = ({
   defaultModel,
@@ -31,6 +32,7 @@ const Popup: FC<PopupProps> = ({
   onSelect,
   scopeFeatures = [],
   onHide,
+  hideSettingsLink = false,
 }) => {
   const { t } = useTranslation()
   const language = useLanguage()
@@ -127,13 +129,15 @@ const Popup: FC<PopupProps> = ({
           )
         }
       </div>
-      <div className='sticky bottom-0 flex cursor-pointer items-center rounded-b-lg border-t border-divider-subtle bg-components-panel-bg px-4 py-2 text-text-accent-light-mode-only' onClick={() => {
-        onHide()
-        setShowAccountSettingModal({ payload: 'provider' })
-      }}>
-        <span className='system-xs-medium'>{t('common.model.settingsLink')}</span>
-        <RiArrowRightUpLine className='ml-0.5 h-3 w-3' />
-      </div>
+      {!hideSettingsLink && (
+        <div className='sticky bottom-0 flex cursor-pointer items-center rounded-b-lg border-t border-divider-subtle bg-components-panel-bg px-4 py-2 text-text-accent-light-mode-only' onClick={() => {
+          onHide()
+          setShowAccountSettingModal({ payload: 'provider' })
+        }}>
+          <span className='system-xs-medium'>{t('common.model.settingsLink')}</span>
+          <RiArrowRightUpLine className='ml-0.5 h-3 w-3' />
+        </div>
+      )}
     </div>
   )
 }

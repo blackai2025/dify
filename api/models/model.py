@@ -415,7 +415,17 @@ class AppModelConfig(Base):
         return (
             json.loads(self.agent_mode)
             if self.agent_mode
-            else {"enabled": False, "strategy": None, "tools": [], "prompt": None}
+            else {
+                "enabled": False,
+                "strategy": None,
+                "tools": [],
+                "prompt": None,
+                "max_iteration": 10,
+                "clear_history_tool_response": False,
+                "keep_user_query_as_kb_query": False,
+                "force_rag": False,
+                "put_recall_into_system_prompt": False,
+            }
         )
 
     @property

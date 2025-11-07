@@ -91,6 +91,7 @@ class DatasetConfigManager:
                     )
                     if dataset_configs.get("metadata_filtering_conditions")
                     else None,
+                    filter_enabled=dataset_configs.get("filter_enabled", False),
                 ),
             )
         else:
@@ -118,6 +119,7 @@ class DatasetConfigManager:
                     )
                     if dataset_configs.get("metadata_filtering_conditions")
                     else None,
+                    filter_enabled=dataset_configs.get("filter_enabled", False),
                 ),
             )
 

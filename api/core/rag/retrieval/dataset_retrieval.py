@@ -66,6 +66,7 @@ default_retrieval_model: dict[str, Any] = {
     "reranking_model": {"reranking_provider_name": "", "reranking_model_name": ""},
     "top_k": 4,
     "score_threshold_enabled": False,
+    "filter_enabled": False,
 }
 
 
@@ -178,6 +179,7 @@ class DatasetRetrieval:
                 message_id,
                 metadata_filter_document_ids,
                 metadata_condition,
+                retrieve_config.filter_enabled or False,
             )
         elif retrieve_config.retrieve_strategy == DatasetRetrieveConfigEntity.RetrieveStrategy.MULTIPLE:
             all_documents = self.multiple_retrieve(
@@ -196,6 +198,7 @@ class DatasetRetrieval:
                 message_id,
                 metadata_filter_document_ids,
                 metadata_condition,
+                retrieve_config.filter_enabled or False,
             )
 
         dify_documents = [item for item in all_documents if item.provider == "dify"]
@@ -293,6 +296,7 @@ class DatasetRetrieval:
         message_id: str | None = None,
         metadata_filter_document_ids: dict[str, list[str]] | None = None,
         metadata_condition: MetadataCondition | None = None,
+        filter_enabled: bool = False,
     ):
         tools = []
         for dataset in available_datasets:
@@ -378,6 +382,8 @@ class DatasetRetrieval:
                     score_threshold_enabled = retrieval_model_config.get("score_threshold_enabled")
                     if score_threshold_enabled:
                         score_threshold = retrieval_model_config.get("score_threshold", 0.0)
+                    # get filter_enabled from dataset's retrieval_model, fallback to app config
+                    dataset_filter_enabled = retrieval_model_config.get("filter_enabled", filter_enabled)
 
                     with measure_time() as timer:
                         results = RetrievalService.retrieve(
@@ -390,6 +396,7 @@ class DatasetRetrieval:
                             reranking_mode=retrieval_model_config.get("reranking_mode", "reranking_model"),
                             weights=retrieval_model_config.get("weights", None),
                             document_ids_filter=document_ids_filter,
+                            filter_enabled=dataset_filter_enabled,
                         )
                 self._on_query(query, [dataset_id], app_id, user_from, user_id)
 
@@ -416,6 +423,7 @@ class DatasetRetrieval:
         message_id: str | None = None,
         metadata_filter_document_ids: dict[str, list[str]] | None = None,
         metadata_condition: MetadataCondition | None = None,
+        filter_enabled: bool = False,
     ):
         if not available_datasets:
             return []
@@ -475,6 +483,7 @@ class DatasetRetrieval:
                     "all_documents": all_documents,
                     "document_ids_filter": document_ids_filter,
                     "metadata_condition": metadata_condition,
+                    "filter_enabled": filter_enabled,
                 },
             )
             threads.append(retrieval_thread)
@@ -588,6 +597,7 @@ class DatasetRetrieval:
         all_documents: list,
         document_ids_filter: list[str] | None = None,
         metadata_condition: MetadataCondition | None = None,
+        filter_enabled: bool = False,
     ):
         with flask_app.app_context():
             dataset_stmt = select(Dataset).where(Dataset.id == dataset_id)
@@ -619,6 +629,8 @@ class DatasetRetrieval:
             else:
                 # get retrieval model , if the model is not setting , using default
                 retrieval_model = dataset.retrieval_model or default_retrieval_model
+                # get filter_enabled from dataset's retrieval_model, fallback to app config
+                dataset_filter_enabled = retrieval_model.get("filter_enabled", filter_enabled)
 
                 if dataset.indexing_technique == "economy":
                     # use keyword table query
@@ -628,6 +640,7 @@ class DatasetRetrieval:
                         query=query,
                         top_k=top_k,
                         document_ids_filter=document_ids_filter,
+                        filter_enabled=dataset_filter_enabled,
                     )
                     if documents:
                         all_documents.extend(documents)
@@ -648,6 +661,7 @@ class DatasetRetrieval:
                             reranking_mode=retrieval_model.get("reranking_mode") or "reranking_model",
                             weights=retrieval_model.get("weights", None),
                             document_ids_filter=document_ids_filter,
+                            filter_enabled=dataset_filter_enabled,
                         )
 
                         all_documents.extend(documents)

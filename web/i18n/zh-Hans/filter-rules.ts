@@ -32,8 +32,17 @@ const translation = {
   deleteSuccess: '删除成功',
   saveFailed: '保存失败',
   deleteFailed: '删除失败',
+  batchAddTip: '支持批量添加：可使用逗号、分号或换行分隔多个实体',
+  batchAddSuccess: '批量添加成功：共 {{count}} 个实体',
+  batchAddPartialFailed: '部分添加失败：成功 {{success}} 个，失败 {{failed}} 个（{{names}}）',
+  import: '导入 CSV',
   export: '导出 CSV',
   exportSuccess: '导出成功',
+  importSuccess: '导入成功：共 {{count}} 个实体',
+  importPartialFailed: '部分导入失败：成功 {{success}} 个，失败 {{failed}} 个',
+  importFailed: '导入失败',
+  invalidFileType: '仅支持 CSV 文件',
+  emptyFile: '文件为空',
 }
 
 export default translation

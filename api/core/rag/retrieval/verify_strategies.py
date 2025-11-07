@@ -36,7 +36,6 @@ def verify_configuration():
 
         features = {
             "RAG_DOCUMENT_PRIORITY_ENABLED": getattr(dify_config, "RAG_DOCUMENT_PRIORITY_ENABLED", False),
-            "RAG_FILTER_ENABLED": getattr(dify_config, "RAG_FILTER_ENABLED", False),
             "RAG_RETRIEVAL_TOP_K_MULTIPLIER": getattr(dify_config, "RAG_RETRIEVAL_TOP_K_MULTIPLIER", 3.0),
         }
 
