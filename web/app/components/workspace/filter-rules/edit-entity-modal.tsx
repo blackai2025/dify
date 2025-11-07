@@ -7,6 +7,7 @@ import { ATTRIBUTE_TYPES, EntityType } from './types'
 import Modal from '@/app/components/base/modal'
 import Button from '@/app/components/base/button'
 import Input from '@/app/components/base/input'
+import { useToastContext } from '@/app/components/base/toast'
 
 type EditEntityModalProps = {
   isShow: boolean
@@ -24,6 +25,7 @@ const EditEntityModal: FC<EditEntityModalProps> = ({
   onSave,
 }) => {
   const { t } = useTranslation()
+  const { notify } = useToastContext()
   const isNew = !editingEntity
   const isBaseEntity = entityType === EntityType.BASE_ENTITY
 
@@ -48,15 +50,75 @@ const EditEntityModal: FC<EditEntityModalProps> = ({
     setError('')
 
     try {
-      await onSave({
-        name: name.trim(),
-        attribute_type: isBaseEntity ? undefined : attributeType.trim(),
-        isNew,
-        originalName: editingEntity?.name,
-      })
+      // Check if this is a new entity with multiple names (separated by comma, semicolon, or newline)
+      if (isNew) {
+        const separatorRegex = /[,，、;；\n]+/
+        const names = name.split(separatorRegex)
+          .map(n => n.trim())
+          .filter(n => n.length > 0)
+
+        if (names.length > 1) {
+          // Multiple entities - save them one by one
+          let successCount = 0
+          const failedNames: string[] = []
+
+          for (const entityName of names) {
+            try {
+              await onSave({
+                name: entityName,
+                attribute_type: isBaseEntity ? undefined : attributeType.trim(),
+                isNew,
+                originalName: editingEntity?.name,
+              })
+              successCount++
+            }
+            catch {
+              failedNames.push(entityName)
+            }
+          }
+
+          if (failedNames.length > 0) {
+            // Some succeeded, some failed
+            notify({
+              type: 'warning',
+              message: t('filterRules.batchAddPartialFailed', {
+                success: successCount,
+                failed: failedNames.length,
+                names: failedNames.join(', '),
+              }),
+            })
+          }
+          else {
+            // All succeeded
+            notify({
+              type: 'success',
+              message: t('filterRules.batchAddSuccess', { count: successCount }),
+            })
+          }
+        }
+        else {
+          // Single entity
+          await onSave({
+            name: name.trim(),
+            attribute_type: isBaseEntity ? undefined : attributeType.trim(),
+            isNew,
+            originalName: editingEntity?.name,
+          })
+        }
+      }
+      else {
+        // Edit mode - single entity only
+        await onSave({
+          name: name.trim(),
+          attribute_type: isBaseEntity ? undefined : attributeType.trim(),
+          isNew,
+          originalName: editingEntity?.name,
+        })
+      }
       onClose()
     }
-    catch (err: any) {
+    catch (error: unknown) {
+      const err = error as Error
       setError(err.message || t('filterRules.saveFailed'))
     }
     finally {
@@ -80,12 +142,25 @@ const EditEntityModal: FC<EditEntityModalProps> = ({
             {isBaseEntity ? t('filterRules.entityName') : t('filterRules.attributeName')}
             <span className="ml-1 text-red-500">*</span>
           </label>
-          <Input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder={isBaseEntity ? t('filterRules.entityNamePlaceholder') : t('filterRules.attributeNamePlaceholder')}
-            maxLength={100}
-          />
+          {isNew
+            ? (
+              <textarea
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder={isBaseEntity ? t('filterRules.entityNamePlaceholder') : t('filterRules.attributeNamePlaceholder')}
+                maxLength={1000}
+                rows={3}
+                className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )
+            : (
+              <Input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder={isBaseEntity ? t('filterRules.entityNamePlaceholder') : t('filterRules.attributeNamePlaceholder')}
+                maxLength={100}
+              />
+            )}
         </div>
 
         {/* Attribute Type Select (only for attributes) */}
@@ -119,6 +194,11 @@ const EditEntityModal: FC<EditEntityModalProps> = ({
 
         {/* Help Text */}
         <div className="text-xs text-gray-500">
+          {isNew && (
+            <div className="mb-2 text-blue-600">
+              💡 {t('filterRules.batchAddTip')}
+            </div>
+          )}
           {isBaseEntity
             ? t('filterRules.entityHelpText')
             : t('filterRules.attributeHelpText')}

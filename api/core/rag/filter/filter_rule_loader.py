@@ -319,7 +319,7 @@ class FilterRuleLoader:
         all_entities.sort(key=lambda x: len(x), reverse=True)
 
         cls._rules_cache = all_entities
-        logger.info(f"[FILTER_LOADER] Loaded and cached {len(cls._rules_cache)} filter rules.")
+        logger.info("[FILTER_LOADER] Loaded and cached %d filter rules.", len(cls._rules_cache))
         return cls._rules_cache
 
     @classmethod
@@ -338,7 +338,7 @@ class FilterRuleLoader:
     
     @classmethod
     def _build_patterns(cls, entities: list[str]) -> list[tuple[str, re.Pattern]]:
-        """
+        r"""
         Build regex patterns for entity list.
         
         Space-agnostic approach: Match entities ignoring all spaces.
@@ -630,17 +630,9 @@ class FilterRuleLoader:
             inferred_attrs = cls._infer_attributes_from_numbers(text, base_entity_span, covered_positions)
             attributes.extend(inferred_attrs)
 
-        result = EntityExtraction(
+        return EntityExtraction(
             base_entity=base_entity, attributes=attributes, all_entities=all_entities, is_comparison=is_comparison
         )
-        logger.info(
-            "[FILTER_LOADER] Extracted from text: base='%s', attrs=%s, all_entities=%s, is_comparison=%s",
-            base_entity,
-            attributes,
-            all_entities,
-            is_comparison,
-        )
-        return result
 
     @classmethod
     def _infer_attributes_from_numbers(
@@ -691,7 +683,6 @@ class FilterRuleLoader:
             attr = cls._infer_attribute_from_number(number)
             if attr:
                 inferred.append(attr)
-                logger.info("[FILTER_LOADER] Inferred attribute '%s' from number '%s' before entity", attr, number)
 
         # Check numbers after entity
         for match in number_pattern.finditer(search_after):
@@ -708,7 +699,6 @@ class FilterRuleLoader:
             attr = cls._infer_attribute_from_number(number)
             if attr:
                 inferred.append(attr)
-                logger.info("[FILTER_LOADER] Inferred attribute '%s' from number '%s' after entity", attr, number)
 
         return inferred
 

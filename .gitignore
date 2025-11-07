@@ -235,3 +235,8 @@ scripts/stress-test/reports/
 # mcp
 .playwright-mcp/
 .serena/
+# Filter rules backups
+api/core/rag/filter/config/backups/
+
+# Docker volumes
+docker/volumes/app/filter_config/

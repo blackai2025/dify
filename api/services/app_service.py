@@ -30,6 +30,27 @@ from tasks.remove_app_and_related_data_task import remove_app_and_related_data_t
 logger = logging.getLogger(__name__)
 
 
+class ModifiedApp(App):
+    """
+    Modified App class for overriding app_model_config dynamically.
+    This class is used to wrap an existing App instance and override its app_model_config property
+    without modifying the database model.
+    """
+
+    __allow_unmapped__ = True
+    _modified_model_config: AppModelConfig | None
+
+    def __init__(self, app: App, modified_model_config: AppModelConfig | None = None):
+        # Copy all attributes from the original app instance
+        self.__dict__.update(app.__dict__)
+        self._modified_model_config = modified_model_config
+
+    @property
+    def app_model_config(self) -> AppModelConfig | None:
+        """Return the modified model config if set, otherwise return the original."""
+        return self._modified_model_config or super().app_model_config
+
+
 class AppService:
     def get_paginate_apps(self, user_id: str, tenant_id: str, args: dict) -> Pagination | None:
         """
@@ -217,19 +238,7 @@ class AppService:
             if model_config:
                 model_config.agent_mode = json.dumps(agent_mode)
 
-            class ModifiedApp(App):
-                """
-                Modified App class
-                """
-
-                def __init__(self, app):
-                    self.__dict__.update(app.__dict__)
-
-                @property
-                def app_model_config(self):
-                    return model_config
-
-            app = ModifiedApp(app)
+            app = ModifiedApp(app, model_config)
 
         return app
 

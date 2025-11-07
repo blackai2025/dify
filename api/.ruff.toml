@@ -105,6 +105,9 @@ ignore = [
     "F811", # redefined-while-unused
     "T201", # allow print in tests
 ]
+"core/rag/retrieval/verify_strategies.py" = [
+    "T201", # allow print in verification scripts
+]
 
 [lint.pyflakes]
 allowed-unused-imports = [

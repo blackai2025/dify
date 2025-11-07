@@ -629,9 +629,10 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # Mount filter rules config for persistence
+      - ./volumes/app/filter_config:/app/api/core/rag/filter/config
       # Mount API source code for development (commented out for production)
       # - ../api/core/rag:/app/api/core/rag:cached
-      # - ../api/core/rag/filter/config:/app/api/core/rag/filter/config:cached
       # - ../api/configs:/app/api/configs:cached
     networks:
       - ssrf_proxy_network
@@ -665,6 +666,8 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # Mount filter rules config for persistence
+      - ./volumes/app/filter_config:/app/api/core/rag/filter/config
     networks:
       - ssrf_proxy_network
       - default
@@ -690,9 +693,10 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # Mount filter rules config for persistence
+      - ./volumes/app/filter_config:/app/api/core/rag/filter/config
       # Mount API source code for development (commented out for production)
       # - ../api/core/rag:/app/api/core/rag:cached
-      # - ../api/core/rag/filter/config:/app/api/core/rag/filter/config:cached
       # - ../api/configs:/app/api/configs:cached
     networks:
       - ssrf_proxy_network
