@@ -57,9 +57,6 @@ class RetrievalService:
             return documents[:top_k]
 
         max_priority_count = int(top_k * max_priority_ratio)
-        rag_logger.info(
-            f"[DIVERSITY] Applying constraint: top_k={top_k}, max_priority={max_priority_count} ({max_priority_ratio * 100:.0f}%)"
-        )
 
         result = []
         priority_count = 0
@@ -84,13 +81,6 @@ class RetrievalService:
         if len(result) < top_k and skipped_priority:
             remaining = top_k - len(result)
             result.extend(skipped_priority[:remaining])
-            rag_logger.info(
-                f"[DIVERSITY] Added {min(remaining, len(skipped_priority))} more priority docs to fill quota"
-            )
-
-        rag_logger.info(
-            f"[DIVERSITY] Result: {len(result)} docs ({priority_count} priority, {len(result) - priority_count} normal)"
-        )
 
         return result
 
@@ -118,10 +108,11 @@ class RetrievalService:
                 deduped.append(doc)
             else:
                 rag_logger.debug(
-                    f"[DEDUP] Removed duplicate document: {doc.page_content[:100] if len(doc.page_content) > 100 else doc.page_content}"
+                    "[DEDUP] Removed duplicate document: %s",
+                    doc.page_content[:100] if len(doc.page_content) > 100 else doc.page_content,
                 )
 
-        rag_logger.info(f"[DEDUP] Deduplicated {len(documents)} → {len(deduped)} documents")
+        rag_logger.info("[DEDUP] Deduplicated %d → %d documents", len(documents), len(deduped))
         return deduped
 
     @classmethod
@@ -201,41 +192,33 @@ class RetrievalService:
             raise ValueError(";\n".join(exceptions))
 
         if retrieval_method == RetrievalMethod.HYBRID_SEARCH.value:
-            rag_logger.info(f"[HYBRID_SEARCH] Before deduplication: {len(all_documents)} documents")
             all_documents = cls._deduplicate_documents(all_documents)
-            rag_logger.info(f"[HYBRID_SEARCH] After deduplication: {len(all_documents)} documents")
-        else:
-            rag_logger.info(f"[{retrieval_method.upper()}] Retrieved {len(all_documents)} documents")
+        
+        rag_logger.info("[%s] Retrieved %d documents", retrieval_method.upper(), len(all_documents))
 
         # Apply post-retrieval filtering BEFORE reranking if enabled
         # This reduces the number of documents that need to be reranked, improving efficiency
-        if filter_enabled:
-            rag_logger.info("[FILTER] Filter enabled")
-            if all_documents:
-                try:
-                    from core.rag.filter.filter_service import FilterService
+        if filter_enabled and all_documents:
+            try:
+                from core.rag.filter.filter_service import FilterService
 
-                    docs_before_filter = len(all_documents)
-                    all_documents = FilterService.apply_filter(all_documents, query)
-                    docs_after_filter = len(all_documents)
-                    filtered_count = docs_before_filter - docs_after_filter
-                    rag_logger.info("[FILTER] Query: '%s'", query)
+                docs_before = len(all_documents)
+                all_documents = FilterService.apply_filter(all_documents, query)
+                docs_after = len(all_documents)
+                if docs_before != docs_after:
                     rag_logger.info(
-                        "[FILTER] Before: %s documents, After: %s documents, Filtered out: %s",
-                        docs_before_filter,
-                        docs_after_filter,
-                        filtered_count,
+                        "[FILTER] Filtered documents: %d → %d (removed %d)",
+                        docs_before,
+                        docs_after,
+                        docs_before - docs_after,
                     )
-                except (ImportError, Exception) as e:
-                    # Log error but continue without filtering to avoid breaking retrieval
-                    rag_logger.warning("[FILTER] Error applying filter: %s, continuing without filtering", e)
-                    pass
-        else:
-            rag_logger.debug("[FILTER] Filter disabled")
+            except Exception as e:
+                # Log error but continue without filtering to avoid breaking retrieval
+                rag_logger.exception("[FILTER] Error applying filter")
+                pass
 
         # Apply reranking for hybrid search AFTER filtering
         if retrieval_method == RetrievalMethod.HYBRID_SEARCH.value:
-            rag_logger.info(f"[HYBRID_SEARCH] Before reranking: {len(all_documents)} documents")
             data_post_processor = DataPostProcessor(
                 str(dataset.tenant_id), reranking_mode, reranking_model, weights, False
             )
@@ -247,7 +230,7 @@ class RetrievalService:
                 score_threshold=score_threshold,
                 top_n=rerank_top_n,
             )
-            rag_logger.info(f"[HYBRID_SEARCH] After reranking: {len(all_documents)} documents (no truncation yet)")
+            rag_logger.info("[HYBRID_SEARCH] After reranking: %d documents", len(all_documents))
 
         # Apply document priority boost AFTER reranking (if enabled)
         priority_enabled = getattr(dify_config, "RAG_DOCUMENT_PRIORITY_ENABLED", False)
@@ -255,7 +238,6 @@ class RetrievalService:
             try:
                 from core.rag.retrieval.document_priority_service import DocumentPriorityService
 
-                rag_logger.info(f"[PRIORITY] Applying priority boost to {len(all_documents)} documents after reranking")
                 all_documents = DocumentPriorityService.apply_priority(all_documents, dataset_id)
             except (ImportError, Exception) as e:
                 rag_logger.warning("[PRIORITY] Error applying priority: %s", e)
@@ -266,18 +248,13 @@ class RetrievalService:
         max_priority_ratio = getattr(dify_config, "RAG_PRIORITY_MAX_RATIO", 0.4)
 
         if priority_enabled and len(all_documents) > 0:
-            rag_logger.info(f"[DIVERSITY] Before constraint: {len(all_documents)} documents")
             all_documents = cls.apply_diversity_constraint(all_documents, top_k, max_priority_ratio)
-            rag_logger.info(
-                f"[DIVERSITY] After constraint: {len(all_documents)} documents (top_k={top_k}, max_priority_ratio={max_priority_ratio})"
-            )
         else:
             # Normal truncation to top_k if priority is disabled
             if len(all_documents) > top_k:
                 all_documents = all_documents[:top_k]
-                rag_logger.info(f"[TRUNCATE] Truncated to top_k: {len(all_documents)} documents")
 
-        rag_logger.info(f"[RETRIEVAL] Final result: {len(all_documents)} documents for top_k={top_k}")
+        rag_logger.info("[RETRIEVAL] Final: %d documents (top_k=%d)", len(all_documents), top_k)
         return all_documents
 
     @classmethod

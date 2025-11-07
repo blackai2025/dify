@@ -66,6 +66,7 @@ default_retrieval_model: dict[str, Any] = {
     "reranking_model": {"reranking_provider_name": "", "reranking_model_name": ""},
     "top_k": 4,
     "score_threshold_enabled": False,
+    "filter_enabled": False,
 }
 
 

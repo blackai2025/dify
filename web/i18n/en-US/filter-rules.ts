@@ -32,8 +32,17 @@ const translation = {
   deleteSuccess: 'Deleted successfully',
   saveFailed: 'Failed to save',
   deleteFailed: 'Failed to delete',
+  batchAddTip: 'Batch add supported: use comma, semicolon or newline to separate multiple entities',
+  batchAddSuccess: 'Batch added successfully: {{count}} entities',
+  batchAddPartialFailed: 'Partially failed: {{success}} succeeded, {{failed}} failed ({{names}})',
+  import: 'Import CSV',
   export: 'Export CSV',
   exportSuccess: 'Exported successfully',
+  importSuccess: 'Import successful: {{count}} entities',
+  importPartialFailed: 'Partially failed: {{success}} succeeded, {{failed}} failed',
+  importFailed: 'Import failed',
+  invalidFileType: 'Only CSV files are supported',
+  emptyFile: 'File is empty',
 }
 
 export default translation

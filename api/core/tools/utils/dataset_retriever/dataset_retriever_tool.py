@@ -1,3 +1,4 @@
+import logging
 from typing import Any, cast
 
 from pydantic import BaseModel, Field
@@ -15,6 +16,8 @@ from extensions.ext_database import db
 from models.dataset import Dataset
 from models.dataset import Document as DatasetDocument
 from services.external_knowledge_service import ExternalDatasetService
+
+logger = logging.getLogger(__name__)
 
 default_retrieval_model: dict[str, Any] = {
     "search_method": RetrievalMethod.SEMANTIC_SEARCH.value,
@@ -126,6 +129,7 @@ class DatasetRetrieverTool(DatasetRetrieverBaseTool):
                 return ""
             # get retrieval model , if the model is not setting , using default
             retrieval_model: dict[str, Any] = dataset.retrieval_model or default_retrieval_model
+
             retrieval_resource_list: list[RetrievalSourceMetadata] = []
             if dataset.indexing_technique == "economy":
                 # use keyword table query
@@ -135,6 +139,7 @@ class DatasetRetrieverTool(DatasetRetrieverBaseTool):
                     query=query,
                     top_k=self.top_k,
                     document_ids_filter=document_ids_filter,
+                    filter_enabled=retrieval_model.get("filter_enabled", False),
                 )
                 return str("\n".join([document.page_content for document in documents]))
             else:
@@ -154,6 +159,7 @@ class DatasetRetrieverTool(DatasetRetrieverBaseTool):
                         reranking_mode=retrieval_model.get("reranking_mode") or "reranking_model",
                         weights=retrieval_model.get("weights"),
                         document_ids_filter=document_ids_filter,
+                        filter_enabled=retrieval_model.get("filter_enabled", False),
                     )
                 else:
                     documents = []
