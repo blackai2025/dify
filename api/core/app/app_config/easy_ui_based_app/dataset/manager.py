@@ -96,6 +96,7 @@ class DatasetConfigManager:
                     metadata_filtering_conditions=MetadataFilteringCondition(**metadata_filtering_conditions_dict)
                     if isinstance(metadata_filtering_conditions_dict, dict)
                     else None,
+                    filter_enabled=dataset_configs.get("filter_enabled", False),
                 ),
             )
         else:
@@ -128,6 +129,7 @@ class DatasetConfigManager:
                     metadata_filtering_conditions=MetadataFilteringCondition(**metadata_filtering_conditions_dict)
                     if isinstance(metadata_filtering_conditions_dict, dict)
                     else None,
+                    filter_enabled=dataset_configs.get("filter_enabled", False),
                 ),
             )
 

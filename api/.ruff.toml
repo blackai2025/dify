@@ -105,6 +105,9 @@ ignore = [
     "S110", # allow ignoring exceptions in tests code (currently)
 
 ]
+"core/rag/retrieval/verify_strategies.py" = [
+    "T201", # allow print in verification scripts
+]
 
 [lint.pyflakes]
 allowed-unused-imports = [

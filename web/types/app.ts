@@ -470,4 +470,5 @@ export type RetrievalConfig = {
       keyword_weight: number
     }
   }
+  filter_enabled?: boolean
 }

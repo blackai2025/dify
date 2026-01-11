@@ -75,6 +75,10 @@ class AgentConfigManager:
                     prompt=agent_prompt_entity,
                     tools=agent_tools,
                     max_iteration=agent_dict.get("max_iteration", 10),
+                    clear_history_tool_response=agent_dict.get("clear_history_tool_response", False),
+                    keep_user_query_as_kb_query=agent_dict.get("keep_user_query_as_kb_query", False),
+                    force_rag=agent_dict.get("force_rag", False),
+                    put_recall_into_system_prompt=agent_dict.get("put_recall_into_system_prompt", False),
                 )
 
         return None

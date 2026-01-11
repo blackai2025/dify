@@ -241,6 +241,10 @@ export const DEFAULT_AGENT_SETTING = {
   enabled: false,
   max_iteration: 10,
   strategy: AgentStrategy.functionCall,
+  clear_history_tool_response: false,
+  keep_user_query_as_kb_query: false,
+  force_rag: false,
+  put_recall_into_system_prompt: false,
   tools: [],
 }
 

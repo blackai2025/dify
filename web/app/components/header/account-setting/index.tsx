@@ -8,6 +8,8 @@ import {
   RiColorFilterLine,
   RiDatabase2Fill,
   RiDatabase2Line,
+  RiFilter2Fill,
+  RiFilter2Line,
   RiGroup2Fill,
   RiGroup2Line,
   RiMoneyDollarCircleFill,
@@ -33,6 +35,7 @@ import { cn } from '@/utils/classnames'
 import Button from '../../base/button'
 import ApiBasedExtensionPage from './api-based-extension-page'
 import DataSourcePage from './data-source-page-new'
+import FilterRulesPage from './filter-rules-page'
 import LanguagePage from './language-page'
 import MembersPage from './members-page'
 import ModelProviderPage from './model-provider-page'
@@ -109,6 +112,12 @@ export default function AccountSetting({
         name: t('common.settings.apiBasedExtension'),
         icon: <RiPuzzle2Line className={iconClassName} />,
         activeIcon: <RiPuzzle2Fill className={iconClassName} />,
+      },
+      {
+        key: ACCOUNT_SETTING_TAB.FILTER_RULES,
+        name: t('common.settings.filterRules'),
+        icon: <RiFilter2Line className={iconClassName} />,
+        activeIcon: <RiFilter2Fill className={iconClassName} />,
       },
     )
 
@@ -243,6 +252,7 @@ export default function AccountSetting({
               {activeMenu === 'billing' && <BillingPage />}
               {activeMenu === 'data-source' && <DataSourcePage />}
               {activeMenu === 'api-based-extension' && <ApiBasedExtensionPage />}
+              {activeMenu === 'filter-rules' && <FilterRulesPage />}
               {activeMenu === 'custom' && <CustomPage />}
               {activeMenu === 'language' && <LanguagePage />}
             </div>

@@ -167,6 +167,7 @@ class QAIndexProcessor(BaseIndexProcessor):
             top_k=top_k,
             score_threshold=score_threshold,
             reranking_model=reranking_model,
+            filter_enabled=False,
         )
         # Organize results.
         docs = []

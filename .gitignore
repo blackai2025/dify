@@ -235,3 +235,9 @@ scripts/stress-test/reports/
 
 # settings
 *.local.json
+
+# Filter rules backups
+api/core/rag/filter/config/backups/
+
+# Docker volumes
+docker/volumes/app/filter_config/

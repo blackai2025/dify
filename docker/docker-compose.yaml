@@ -669,6 +669,11 @@ x-shared-env: &shared-api-worker-env
   SANDBOX_EXPIRED_RECORDS_CLEAN_GRACEFUL_PERIOD: ${SANDBOX_EXPIRED_RECORDS_CLEAN_GRACEFUL_PERIOD:-21}
   SANDBOX_EXPIRED_RECORDS_CLEAN_BATCH_SIZE: ${SANDBOX_EXPIRED_RECORDS_CLEAN_BATCH_SIZE:-1000}
   SANDBOX_EXPIRED_RECORDS_RETENTION_DAYS: ${SANDBOX_EXPIRED_RECORDS_RETENTION_DAYS:-30}
+  # RAG 多召回和过滤策略
+  RAG_DOCUMENT_PRIORITY_ENABLED: ${RAG_DOCUMENT_PRIORITY_ENABLED:-false}
+  RAG_FILTER_ENABLED: ${RAG_FILTER_ENABLED:-false}
+  RAG_RETRIEVAL_TOP_K_MULTIPLIER: ${RAG_RETRIEVAL_TOP_K_MULTIPLIER:-1.0}
+  RAG_PRIORITY_MAX_RATIO: ${RAG_PRIORITY_MAX_RATIO:-0.6}
 
 services:
   # Init container to fix permissions
@@ -692,7 +697,10 @@ services:
 
   # API service
   api:
-    image: langgenius/dify-api:1.11.2
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    image: ccr.ccs.tencentyun.com/blackai/dify-api:latest
     restart: always
     environment:
       # Use the shared environment variables.
@@ -727,14 +735,24 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # Mount filter rules config for persistence
+      - ./volumes/app/filter_config:/app/api/core/rag/filter/config
+      # Mount API source code for development (commented out for production)
+      # - ../api/core/rag:/app/api/core/rag:cached
+      # - ../api/configs:/app/api/configs:cached
     networks:
       - ssrf_proxy_network
       - default
+    ports:
+      - "5001:5001"
 
   # worker service
   # The Celery worker for processing all queues (dataset, workflow, mail, etc.)
   worker:
-    image: langgenius/dify-api:1.11.2
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    image: ccr.ccs.tencentyun.com/blackai/dify-api:latest
     restart: always
     environment:
       # Use the shared environment variables.
@@ -766,6 +784,8 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # Mount filter rules config for persistence
+      - ./volumes/app/filter_config:/app/api/core/rag/filter/config
     networks:
       - ssrf_proxy_network
       - default
@@ -773,7 +793,10 @@ services:
   # worker_beat service
   # Celery beat for scheduling periodic tasks.
   worker_beat:
-    image: langgenius/dify-api:1.11.2
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    image: ccr.ccs.tencentyun.com/blackai/dify-api:latest
     restart: always
     environment:
       # Use the shared environment variables.
@@ -797,15 +820,27 @@ services:
         required: false
       redis:
         condition: service_started
+    volumes:
+      # Mount the storage directory to the container, for storing user files.
+      - ./volumes/app/storage:/app/api/storage
+      # Mount filter rules config for persistence
+      - ./volumes/app/filter_config:/app/api/core/rag/filter/config
+      # Mount API source code for development (commented out for production)
+      # - ../api/core/rag:/app/api/core/rag:cached
+      # - ../api/configs:/app/api/configs:cached
     networks:
       - ssrf_proxy_network
       - default
 
   # Frontend web application.
   web:
-    image: langgenius/dify-web:1.11.2
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    image: ccr.ccs.tencentyun.com/blackai/dify-web:latest
     restart: always
     environment:
+      NODE_OPTIONS: "--max-old-space-size=4096"
       CONSOLE_API_URL: ${CONSOLE_API_URL:-}
       APP_API_URL: ${APP_API_URL:-}
       AMPLITUDE_API_KEY: ${AMPLITUDE_API_KEY:-}
@@ -829,6 +864,10 @@ services:
       ENABLE_WEBSITE_JINAREADER: ${ENABLE_WEBSITE_JINAREADER:-true}
       ENABLE_WEBSITE_FIRECRAWL: ${ENABLE_WEBSITE_FIRECRAWL:-true}
       ENABLE_WEBSITE_WATERCRAWL: ${ENABLE_WEBSITE_WATERCRAWL:-true}
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3000:3000"
 
   # The PostgreSQL database.
   db_postgres:
@@ -1058,48 +1097,49 @@ services:
 
   # The nginx reverse proxy.
   # used for reverse proxying the API service and Web service.
-  nginx:
-    image: nginx:latest
-    restart: always
-    volumes:
-      - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
-      - ./nginx/proxy.conf.template:/etc/nginx/proxy.conf.template
-      - ./nginx/https.conf.template:/etc/nginx/https.conf.template
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/docker-entrypoint.sh:/docker-entrypoint-mount.sh
-      - ./nginx/ssl:/etc/ssl # cert dir (legacy)
-      - ./volumes/certbot/conf/live:/etc/letsencrypt/live # cert dir (with certbot container)
-      - ./volumes/certbot/conf:/etc/letsencrypt
-      - ./volumes/certbot/www:/var/www/html
-    entrypoint:
-      [
-        "sh",
-        "-c",
-        "cp /docker-entrypoint-mount.sh /docker-entrypoint.sh && sed -i 's/\r$$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh && /docker-entrypoint.sh",
-      ]
-    environment:
-      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
-      NGINX_HTTPS_ENABLED: ${NGINX_HTTPS_ENABLED:-false}
-      NGINX_SSL_PORT: ${NGINX_SSL_PORT:-443}
-      NGINX_PORT: ${NGINX_PORT:-80}
-      # You're required to add your own SSL certificates/keys to the `./nginx/ssl` directory
-      # and modify the env vars below in .env if HTTPS_ENABLED is true.
-      NGINX_SSL_CERT_FILENAME: ${NGINX_SSL_CERT_FILENAME:-dify.crt}
-      NGINX_SSL_CERT_KEY_FILENAME: ${NGINX_SSL_CERT_KEY_FILENAME:-dify.key}
-      NGINX_SSL_PROTOCOLS: ${NGINX_SSL_PROTOCOLS:-TLSv1.2 TLSv1.3}
-      NGINX_WORKER_PROCESSES: ${NGINX_WORKER_PROCESSES:-auto}
-      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-100M}
-      NGINX_KEEPALIVE_TIMEOUT: ${NGINX_KEEPALIVE_TIMEOUT:-65}
-      NGINX_PROXY_READ_TIMEOUT: ${NGINX_PROXY_READ_TIMEOUT:-3600s}
-      NGINX_PROXY_SEND_TIMEOUT: ${NGINX_PROXY_SEND_TIMEOUT:-3600s}
-      NGINX_ENABLE_CERTBOT_CHALLENGE: ${NGINX_ENABLE_CERTBOT_CHALLENGE:-false}
-      CERTBOT_DOMAIN: ${CERTBOT_DOMAIN:-}
-    depends_on:
-      - api
-      - web
-    ports:
-      - "${EXPOSE_NGINX_PORT:-80}:${NGINX_PORT:-80}"
-      - "${EXPOSE_NGINX_SSL_PORT:-443}:${NGINX_SSL_PORT:-443}"
+  # Note: Commented out for custom deployment - uncomment if nginx proxy is needed
+  # nginx:
+  #   image: nginx:latest
+  #   restart: always
+  #   volumes:
+  #     - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
+  #     - ./nginx/proxy.conf.template:/etc/nginx/proxy.conf.template
+  #     - ./nginx/https.conf.template:/etc/nginx/https.conf.template
+  #     - ./nginx/conf.d:/etc/nginx/conf.d
+  #     - ./nginx/docker-entrypoint.sh:/docker-entrypoint-mount.sh
+  #     - ./nginx/ssl:/etc/ssl # cert dir (legacy)
+  #     - ./volumes/certbot/conf/live:/etc/letsencrypt/live # cert dir (with certbot container)
+  #     - ./volumes/certbot/conf:/etc/letsencrypt
+  #     - ./volumes/certbot/www:/var/www/html
+  #   entrypoint:
+  #     [
+  #       "sh",
+  #       "-c",
+  #       "cp /docker-entrypoint-mount.sh /docker-entrypoint.sh && sed -i 's/\r$$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh && /docker-entrypoint.sh",
+  #     ]
+  #   environment:
+  #     NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
+  #     NGINX_HTTPS_ENABLED: ${NGINX_HTTPS_ENABLED:-false}
+  #     NGINX_SSL_PORT: ${NGINX_SSL_PORT:-443}
+  #     NGINX_PORT: ${NGINX_PORT:-80}
+  #     # You're required to add your own SSL certificates/keys to the `./nginx/ssl` directory
+  #     # and modify the env vars below in .env if HTTPS_ENABLED is true.
+  #     NGINX_SSL_CERT_FILENAME: ${NGINX_SSL_CERT_FILENAME:-dify.crt}
+  #     NGINX_SSL_CERT_KEY_FILENAME: ${NGINX_SSL_CERT_KEY_FILENAME:-dify.key}
+  #     NGINX_SSL_PROTOCOLS: ${NGINX_SSL_PROTOCOLS:-TLSv1.2 TLSv1.3}
+  #     NGINX_WORKER_PROCESSES: ${NGINX_WORKER_PROCESSES:-auto}
+  #     NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-100M}
+  #     NGINX_KEEPALIVE_TIMEOUT: ${NGINX_KEEPALIVE_TIMEOUT:-65}
+  #     NGINX_PROXY_READ_TIMEOUT: ${NGINX_PROXY_READ_TIMEOUT:-3600s}
+  #     NGINX_PROXY_SEND_TIMEOUT: ${NGINX_PROXY_SEND_TIMEOUT:-3600s}
+  #     NGINX_ENABLE_CERTBOT_CHALLENGE: ${NGINX_ENABLE_CERTBOT_CHALLENGE:-false}
+  #     CERTBOT_DOMAIN: ${CERTBOT_DOMAIN:-}
+  #   depends_on:
+  #     - api
+  #     - web
+  #   ports:
+  #     - "${EXPOSE_NGINX_PORT:-80}:${NGINX_PORT:-80}"
+  #     - "${EXPOSE_NGINX_SSL_PORT:-443}:${NGINX_SSL_PORT:-443}"
 
   # The Weaviate vector store.
   weaviate:

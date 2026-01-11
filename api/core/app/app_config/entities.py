@@ -261,6 +261,7 @@ class DatasetRetrieveConfigEntity(BaseModel):
     metadata_filtering_mode: Literal["disabled", "automatic", "manual"] | None = "disabled"
     metadata_model_config: ModelConfig | None = None
     metadata_filtering_conditions: MetadataFilteringCondition | None = None
+    filter_enabled: bool | None = False
 
 
 class DatasetEntity(BaseModel):

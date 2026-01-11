@@ -842,6 +842,10 @@ const Configuration: FC = () => {
       draft.text_to_speech = textToSpeechConfig
       draft.retriever_resource = citationConfig
       draft.dataSets = dataSets
+      draft.agentConfig = {
+        ...draft.agentConfig,
+        strategy: isFunctionCall ? AgentStrategy.functionCall : AgentStrategy.react,
+      }
     })
     setPublishedConfig({
       modelConfig: newModelConfig,

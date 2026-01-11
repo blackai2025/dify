@@ -176,6 +176,7 @@ class DatasetMultiRetrieverTool(DatasetRetrieverBaseTool):
                     dataset_id=dataset.id,
                     query=query,
                     top_k=retrieval_model.get("top_k") or 4,
+                    filter_enabled=retrieval_model.get("filter_enabled", False),
                 )
                 if documents:
                     all_documents.extend(documents)
@@ -195,6 +196,7 @@ class DatasetMultiRetrieverTool(DatasetRetrieverBaseTool):
                         else None,
                         reranking_mode=retrieval_model.get("reranking_mode") or "reranking_model",
                         weights=retrieval_model.get("weights", None),
+                        filter_enabled=retrieval_model.get("filter_enabled", False),
                     )
 
                     all_documents.extend(documents)

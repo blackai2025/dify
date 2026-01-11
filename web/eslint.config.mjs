@@ -11,7 +11,6 @@ export default antfu(
         'react/no-context-provider': 'off',
         'react/no-forward-ref': 'off',
         'react/no-use-context': 'off',
-        'react/prefer-namespace-import': 'error',
       },
     },
     nextjs: true,

@@ -6,10 +6,14 @@ LABEL maintainer="takatost@gmail.com"
 # RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # if you located in China, you can use taobao registry to speed up
-# RUN npm config set registry https://registry.npmmirror.com
+RUN npm config set registry https://registry.npmmirror.com
 
 RUN apk add --no-cache tzdata
 RUN corepack enable
+
+# Set corepack to use China mirror for downloading pnpm
+ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_PUBLIC_BASE_PATH=""
@@ -33,7 +37,7 @@ WORKDIR /app/web
 COPY --from=packages /app/web/ .
 COPY . .
 
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS="--max-old-space-size=8192"
 RUN pnpm build:docker
 
 

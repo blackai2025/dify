@@ -127,6 +127,10 @@ export type AgentConfig = {
   enabled: boolean
   strategy: AgentStrategy
   max_iteration: number
+  clear_history_tool_response: boolean
+  keep_user_query_as_kb_query: boolean
+  force_rag: boolean
+  put_recall_into_system_prompt: boolean
   tools: ToolItem[]
 }
 // frontend use. Not the same as backend
@@ -194,6 +198,7 @@ export type DatasetConfigs = {
   metadata_filtering_mode?: MetadataFilteringModeEnum
   metadata_filtering_conditions?: MetadataFilteringConditions
   metadata_model_config?: NodeModelConfig
+  filter_enabled?: boolean
 }
 
 export type DebugRequestBody = {

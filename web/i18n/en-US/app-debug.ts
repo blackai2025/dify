@@ -530,6 +530,20 @@ const translation = {
     score_threshold: 'Score Threshold',
     score_thresholdTip: 'Used to set the similarity threshold for chunks filtering.',
     retrieveChangeTip: 'Modifying the index mode and retrieval mode may affect applications associated with this Knowledge.',
+    smartFilter: {
+      title: 'Smart Filter',
+      description: 'Intelligently filter irrelevant retrieved documents based on structured entity and attribute matching.',
+      tooltipTitle: 'Smart Filter',
+      suitableFor: 'Suitable for:',
+      useCase1: 'Domain-specific knowledge bases with structured data (e.g., products, orders)',
+      useCase2: 'Scenarios requiring precise entity/attribute filtering',
+      howItWorks: 'How it works:',
+      mechanism: 'Extracts entities/attributes from query → Matches with filter rules → Filters retrieved docs',
+      rulesConfigured: 'Filter rules configured: {{entities}} entities, {{attributes}} attributes',
+      viewRules: 'View filter rules',
+      noRulesWarning: 'No filter rules configured yet',
+      addRulesNow: 'Add filter rules',
+    },
   },
   debugAsSingleModel: 'Debug as Single Model',
   debugAsMultipleModel: 'Debug as Multiple Models',
@@ -559,6 +573,22 @@ const translation = {
       maximumIterations: {
         name: 'Maximum Iterations',
         description: 'Limit the number of iterations an agent assistant can execute',
+      },
+      clearHistoryToolResponse: {
+        name: 'Clear History Tool Response',
+        description: 'Clear the history of tool responses before next LLM call',
+      },
+      keepUserQueryAsKbQuery: {
+        name: 'Keep User Input as KB Query',
+        description: 'Keep the user input as the KB query',
+      },
+      forceRag: {
+        name: 'Force RAG',
+        description: 'Force the agent to execute RAG',
+      },
+      putRecallIntoSystemPrompt: {
+        name: 'Put Recall into System Prompt',
+        description: 'Put the recall result into the system prompt',
       },
     },
     buildInPrompt: 'Build-In Prompt',
