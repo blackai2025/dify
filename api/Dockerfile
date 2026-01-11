@@ -3,16 +3,16 @@ FROM python:3.12-slim-bookworm AS base
 
 WORKDIR /app/api
 
-# Install uv
+# Install uv (use China mirror to speed up)
 ENV UV_VERSION=0.8.9
 
-RUN pip install --no-cache-dir uv==${UV_VERSION}
+RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ --no-cache-dir uv==${UV_VERSION}
 
 
 FROM base AS packages
 
 # if you located in China, you can use aliyun mirror to speed up
-# RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources
+RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -23,7 +23,9 @@ RUN apt-get update \
 
 # Install Python dependencies
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev
+# Use China PyPI mirror with extended timeout for slow networks
+ENV UV_HTTP_TIMEOUT=300
+RUN uv sync --frozen --no-dev --index-url https://mirrors.aliyun.com/pypi/simple/
 
 # production stage
 FROM base AS production
