@@ -4,7 +4,6 @@ import type { FilterEntity } from './types'
 import {
   RiDeleteBinLine,
   RiEditLine,
-  RiSearchLine,
 } from '@remixicon/react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,7 +58,7 @@ const EntityList: FC<EntityListProps> = ({
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder={t('filterRules.searchPlaceholder')}
-          prefix={<RiSearchLine className="h-4 w-4 text-gray-400" />}
+          showLeftIcon
         />
       </div>
 

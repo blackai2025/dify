@@ -29,6 +29,10 @@ const basePayload = {
   enabled: true,
   strategy: 'react',
   max_iteration: 5,
+  clear_history_tool_response: false,
+  keep_user_query_as_kb_query: false,
+  force_rag: false,
+  put_recall_into_system_prompt: false,
   tools: [],
 }
 

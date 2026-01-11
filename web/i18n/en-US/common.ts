@@ -32,6 +32,7 @@ const translation = {
     added: 'Added',
     refresh: 'Restart',
     reset: 'Reset',
+    retry: 'Retry',
     search: 'Search',
     noSearchResults: 'No {{content}} were found',
     resetKeywords: 'Reset keywords',

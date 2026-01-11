@@ -63,8 +63,12 @@ function createMockModelConfig(overrides: Partial<ModelConfig> = {}): ModelConfi
     agentConfig: {
       enabled: false,
       max_iteration: 5,
-      tools: [],
       strategy: AgentStrategy.react,
+      clear_history_tool_response: false,
+      keep_user_query_as_kb_query: false,
+      force_rag: false,
+      put_recall_into_system_prompt: false,
+      tools: [],
     },
     ...overrides,
   }
@@ -225,6 +229,11 @@ const mockDebugConfigContext = {
     agentConfig: {
       enabled: false,
       max_iteration: 5,
+      strategy: AgentStrategy.react,
+      clear_history_tool_response: false,
+      keep_user_query_as_kb_query: false,
+      force_rag: false,
+      put_recall_into_system_prompt: false,
       tools: [{
         tool_name: 'test-tool',
         provider_id: 'test-provider',
@@ -234,7 +243,6 @@ const mockDebugConfigContext = {
         tool_parameters: {},
         enabled: true,
       }],
-      strategy: AgentStrategy.react,
     },
   }),
   setModelConfig: vi.fn(),
@@ -811,8 +819,12 @@ describe('DebugWithSingleModel', () => {
           agentConfig: {
             enabled: false,
             max_iteration: 5,
-            tools: [],
             strategy: AgentStrategy.react,
+            clear_history_tool_response: false,
+            keep_user_query_as_kb_query: false,
+            force_rag: false,
+            put_recall_into_system_prompt: false,
+            tools: [],
           },
         }),
       })
@@ -829,6 +841,11 @@ describe('DebugWithSingleModel', () => {
           agentConfig: {
             enabled: false,
             max_iteration: 5,
+            strategy: AgentStrategy.react,
+            clear_history_tool_response: false,
+            keep_user_query_as_kb_query: false,
+            force_rag: false,
+            put_recall_into_system_prompt: false,
             tools: [{
               tool_name: 'unknown-tool',
               provider_id: 'unknown-provider',
@@ -838,7 +855,6 @@ describe('DebugWithSingleModel', () => {
               tool_parameters: {},
               enabled: true,
             }],
-            strategy: AgentStrategy.react,
           },
         }),
         collectionList: [],

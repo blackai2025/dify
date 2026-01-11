@@ -68,7 +68,7 @@ const EditEntityModal: FC<EditEntityModalProps> = ({
                 name: entityName,
                 attribute_type: isBaseEntity ? undefined : attributeType.trim(),
                 isNew,
-                originalName: editingEntity?.name,
+                originalName: (editingEntity as FilterEntity | undefined)?.name,
               })
               successCount++
             }
@@ -102,7 +102,7 @@ const EditEntityModal: FC<EditEntityModalProps> = ({
             name: name.trim(),
             attribute_type: isBaseEntity ? undefined : attributeType.trim(),
             isNew,
-            originalName: editingEntity?.name,
+            originalName: (editingEntity as FilterEntity | undefined)?.name,
           })
         }
       }

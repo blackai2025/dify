@@ -33,6 +33,10 @@ const createAgentConfig = (overrides: Partial<AgentConfig> = {}): AgentConfig =>
   enabled: true,
   strategy: AgentStrategy.react,
   max_iteration: 3,
+  clear_history_tool_response: false,
+  keep_user_query_as_kb_query: false,
+  force_rag: false,
+  put_recall_into_system_prompt: false,
   tools: [],
   ...overrides,
 })

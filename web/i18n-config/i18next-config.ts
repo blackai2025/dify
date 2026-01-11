@@ -21,6 +21,7 @@ import datasetPipeline from '../i18n/en-US/dataset-pipeline'
 import datasetSettings from '../i18n/en-US/dataset-settings'
 import education from '../i18n/en-US/education'
 import explore from '../i18n/en-US/explore'
+import filterRules from '../i18n/en-US/filter-rules'
 import layout from '../i18n/en-US/layout'
 import login from '../i18n/en-US/login'
 import oauth from '../i18n/en-US/oauth'
@@ -54,6 +55,7 @@ export const messagesEN = {
   datasetSettings,
   education,
   explore,
+  filterRules,
   layout,
   login,
   oauth,
