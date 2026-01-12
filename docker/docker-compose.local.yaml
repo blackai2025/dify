@@ -609,7 +609,7 @@ services:
 
   # Weaviate vector store
   weaviate:
-    image: semitechnologies/weaviate:1.19.0
+    image: semitechnologies/weaviate:1.27.0
     profiles:
       - ""
       - weaviate
