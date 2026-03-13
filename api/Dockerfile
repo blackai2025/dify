@@ -6,16 +6,16 @@ WORKDIR /app/api
 # Install uv (use China mirror to speed up)
 ENV UV_VERSION=0.8.9
 
-RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ --no-cache-dir uv==${UV_VERSION}
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/ --no-cache-dir uv==${UV_VERSION}
 
 
 FROM base AS packages
 
 # if you located in China, you can use aliyun mirror to speed up
-RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources
+RUN sed -i 's@deb.debian.org@mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list.d/debian.sources
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends --fix-missing \
           # basic environment
           g++ \
           # for building gmpy2
@@ -25,7 +25,7 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 # Use China PyPI mirror with extended timeout for slow networks
 ENV UV_HTTP_TIMEOUT=300
-RUN uv sync --frozen --no-dev --index-url https://mirrors.aliyun.com/pypi/simple/
+RUN uv sync --frozen --no-dev --index-url https://pypi.tuna.tsinghua.edu.cn/simple/
 
 # production stage
 FROM base AS production
@@ -56,22 +56,15 @@ RUN groupadd -r -g ${dify_uid} dify && \
     useradd -r -u ${dify_uid} -g ${dify_uid} -s /bin/bash dify && \
     chown -R dify:dify /app
 
-RUN \
-    apt-get update \
-    # Install dependencies
+RUN sed -i 's@deb.debian.org@mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
-        # basic environment
         curl nodejs \
-        # for gmpy2 \
         libgmp-dev libmpfr-dev libmpc-dev \
-        # For Security
         expat libldap-2.5-0=2.5.13+dfsg-5 perl libsqlite3-0=3.40.1-2+deb12u2 zlib1g=1:1.2.13.dfsg-1 \
-        # install fonts to support the use of tools like pypdfium2
-        fonts-noto-cjk \
-        # install a package to improve the accuracy of guessing mime type and file extension
         media-types \
-        # install libmagic to support the use of python-magic guess MIMETYPE
         libmagic1 \
+    && for i in 1 2 3 4 5; do apt-get install -y --no-install-recommends --fix-missing fonts-noto-cjk && break || echo "Retry $i..."; sleep 5; done \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
