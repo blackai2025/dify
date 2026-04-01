@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.rag.filter.filter_rule_loader import EntityExtraction
+from core.rag.filter.filter_rule_loader import EntityExtraction, FilterRuleLoader
 
 
 class TestEntityExtraction:
@@ -132,6 +132,38 @@ class TestEntityExtraction:
 
         # Query "e5q" should NOT match doc "e5q pro" (different products)
         assert query.matches(doc) is False
+
+
+class TestFilterRuleLoader:
+    """Test FilterRuleLoader extraction and filtering behavior"""
+
+    def setup_method(self):
+        FilterRuleLoader.clear_cache()
+
+    def teardown_method(self):
+        FilterRuleLoader.clear_cache()
+
+    def test_q10l_document_with_qd_mini_led_prefers_q10l_entity(self):
+        content = (
+            '品牌":"TCL";"产品系列":"Q10L";"产品尺寸":"65";'
+            '"产品介绍":"Q10L是一款QD-Mini LED电视新品"'
+        )
+
+        extraction = FilterRuleLoader.extract_structured_entity(content)
+
+        assert extraction.base_entity == "Q10L"
+
+    def test_q10l_query_should_keep_q10l_doc_with_qd_mini_led_description(self):
+        query_extraction = FilterRuleLoader.get_applicable_rules("Q10L")
+        content = (
+            '品牌":"TCL";"产品系列":"Q10L";"产品尺寸":"65";'
+            '"产品介绍":"Q10L是一款QD-Mini LED电视新品"'
+        )
+
+        should_filter, reason = FilterRuleLoader.should_filter_out(content, query_extraction)
+
+        assert should_filter is False
+        assert reason is None
 
 
 if __name__ == "__main__":

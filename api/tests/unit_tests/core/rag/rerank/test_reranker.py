@@ -809,6 +809,80 @@ class TestWeightRerankRunner:
         assert len(result) == 1
         # The final score should incorporate the existing score (0.95) with vector weight (0.6)
 
+    def test_same_entity_price_chunk_gets_business_priority_boost(
+        self,
+        weights_config,
+        mock_model_manager,
+        mock_cache_embedding,
+        mock_jieba_handler,
+    ):
+        runner = WeightRerankRunner(tenant_id="tenant123", weights=weights_config)
+
+        documents = [
+            Document(
+                page_content='品牌":"TCL";"产品系列":"Q10L";"产品介绍":"Q10L是一款QD-Mini LED电视新品"',
+                metadata={"doc_id": "intro"},
+                provider="dify",
+                vector=[0.1, 0.2],
+            ),
+            Document(
+                page_content='品牌":"TCL";"产品系列":"Q10L";"预估到手价":"5599";"下单链接":"https://example.com";"跟团流程":"步骤"',
+                metadata={"doc_id": "price"},
+                provider="dify",
+                vector=[0.1, 0.2],
+            ),
+        ]
+
+        mock_handler_instance = MagicMock()
+        mock_handler_instance.extract_keywords.return_value = ["q10l"]
+        mock_jieba_handler.return_value = mock_handler_instance
+
+        mock_embedding_instance = MagicMock()
+        mock_model_manager.return_value.get_model_instance.return_value = mock_embedding_instance
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.embed_query.return_value = [0.1, 0.2]
+        mock_cache_embedding.return_value = mock_cache_instance
+
+        with patch.object(WeightRerankRunner, "_calculate_keyword_score", return_value=[0.3, 0.3]):
+            with patch.object(WeightRerankRunner, "_calculate_cosine", return_value=[0.6, 0.55]):
+                result = runner.run(query="Q10L", documents=documents)
+
+        assert result[0].metadata["doc_id"] == "price"
+        assert result[0].metadata["business_priority_score"] > 0
+        assert result[1].metadata["business_priority_score"] == 0
+
+    def test_sibling_model_price_chunk_does_not_get_business_priority_boost(
+        self,
+        weights_config,
+        mock_model_manager,
+        mock_cache_embedding,
+        mock_jieba_handler,
+    ):
+        runner = WeightRerankRunner(tenant_id="tenant123", weights=weights_config)
+
+        documents = [
+            Document(
+                page_content='品牌":"TCL";"产品系列":"Q10L Pro";"预估到手价":"9999";"下单链接":"https://example.com";"跟团流程":"步骤"',
+                metadata={"doc_id": "q10l-pro-price"},
+                provider="dify",
+                vector=[0.1, 0.2],
+            ),
+        ]
+
+        mock_handler_instance = MagicMock()
+        mock_handler_instance.extract_keywords.return_value = ["q10l"]
+        mock_jieba_handler.return_value = mock_handler_instance
+
+        mock_embedding_instance = MagicMock()
+        mock_model_manager.return_value.get_model_instance.return_value = mock_embedding_instance
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.embed_query.return_value = [0.1, 0.2]
+        mock_cache_embedding.return_value = mock_cache_instance
+
+        result = runner.run(query="Q10L", documents=documents)
+
+        assert result[0].metadata["business_priority_score"] == 0
+
 
 class TestRerankRunnerFactory:
     """Unit tests for RerankRunnerFactory.

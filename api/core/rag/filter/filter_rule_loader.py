@@ -583,8 +583,11 @@ class FilterRuleLoader:
 
                 # Remove overlapping candidates: for overlapping matches, keep only the longest one
                 if candidates:
-                    # Sort by score (descending), then by length (descending)
-                    candidates.sort(key=lambda x: (x[2], x[4] - x[3]), reverse=True)
+                    # Sort by score first, then prefer earlier matches in the text.
+                    # This avoids generic terms like "Mini" inside descriptive phrases
+                    # (for example "QD-Mini LED") outranking the actual product series
+                    # that usually appears earlier in structured product fields.
+                    candidates.sort(key=lambda x: (x[2], -x[3], x[4] - x[3]), reverse=True)
 
                     # Filter out overlapping candidates
                     non_overlapping = []
