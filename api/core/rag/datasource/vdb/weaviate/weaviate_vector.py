@@ -196,7 +196,7 @@ class WeaviateVector(BaseVector):
                             wc.Property(name="doc_id", data_type=wc.DataType.TEXT),
                             wc.Property(name="chunk_index", data_type=wc.DataType.INT),
                         ],
-                        vector_config=[wc.Configure.NamedVectors.none(name="default")],
+                        vector_config=wc.Configure.Vectors.self_provided(name="default"),
                     )
 
                 self._ensure_properties()
