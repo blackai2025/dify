@@ -12,7 +12,7 @@ import {
 import copy from 'copy-to-clipboard'
 import { produce } from 'immer'
 import * as React from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useContext } from 'use-context-selector'
 import Panel from '@/app/components/app/configuration/base/feature-panel'
@@ -82,6 +82,29 @@ const AgentTools: FC = () => {
     setModelConfig(newModelConfig)
   }, [modelConfig, setModelConfig])
   useSubscribe('plugin:install:success', handleUpdateToolsWhenInstallToolSuccess as any)
+
+  useEffect(() => {
+    if (!collectionList.length)
+      return
+    const allTools = (modelConfig?.agentConfig?.tools as AgentTool[]) || []
+    const hasStaleDeletedFlag = allTools.some((item) => {
+      if (!item.isDeleted)
+        return false
+      return collectionList.some(c => canFindTool(c.id, item.provider_id) && c.type === item.provider_type)
+    })
+    if (!hasStaleDeletedFlag)
+      return
+    const newModelConfig = produce(modelConfig, (draft) => {
+      draft.agentConfig.tools.forEach((item: any) => {
+        if (!item.isDeleted)
+          return
+        const exists = collectionList.some(c => canFindTool(c.id, item.provider_id) && c.type === item.provider_type)
+        if (exists)
+          item.isDeleted = false
+      })
+    })
+    setModelConfig(newModelConfig)
+  }, [collectionList, modelConfig, setModelConfig])
 
   const handleToolSettingChange = (value: Record<string, any>) => {
     const newModelConfig = produce(modelConfig, (draft) => {
