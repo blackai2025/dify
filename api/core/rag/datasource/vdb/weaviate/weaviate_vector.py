@@ -234,17 +234,19 @@ class WeaviateVector(BaseVector):
 
     def _get_uuids(self, documents: list[Document]) -> list[str]:
         """
-        Generates deterministic UUIDs for documents based on their content.
-
-        Uses UUID5 with URL namespace to ensure consistent IDs for identical content.
+        Use the SQL segment's `doc_id` (= `DocumentSegment.index_node_id`) as the
+        Weaviate object UUID. This keeps Weaviate's primary key in lockstep with
+        SQL, so `delete_by_ids([index_node_id])` actually finds the object and
+        two segments with identical content do not collide on the same UUID.
         """
-        URL_NAMESPACE = _uuid.UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
-
         uuids = []
         for doc in documents:
-            uuid_val = _uuid.uuid5(URL_NAMESPACE, doc.page_content)
-            uuids.append(str(uuid_val))
-
+            meta = doc.metadata or {}
+            candidate = meta.get("doc_id")
+            if candidate and self._is_uuid(candidate):
+                uuids.append(str(candidate))
+            else:
+                uuids.append(str(_uuid.uuid4()))
         return uuids
 
     def add_texts(self, documents: list[Document], embeddings: list[list[float]], **kwargs):
@@ -326,21 +328,28 @@ class WeaviateVector(BaseVector):
 
     def delete_by_ids(self, ids: list[str]) -> None:
         """
-        Deletes objects by their UUID identifiers.
+        Delete objects whose stored `doc_id` property matches one of the given ids.
 
-        Silently ignores 404 errors for non-existent IDs.
+        Callers (Vector / VectorService / clean tasks) pass `index_node_id` here,
+        not the Weaviate object UUID. Older rows in this collection were written
+        with `uuid5(content)` as their UUID, so a direct UUID lookup would 404 and
+        silently no-op — that is exactly how Weaviate orphans accumulated. Filter
+        by `doc_id` property instead so deletion works for both legacy and newly
+        written rows.
         """
-        if not self._client.collections.exists(self._collection_name):
+        if not ids or not self._client.collections.exists(self._collection_name):
             return
 
         col = self._client.collections.use(self._collection_name)
-
-        for uid in ids:
-            try:
-                col.data.delete_by_id(uid)
-            except UnexpectedStatusCodeError as e:
-                if getattr(e, "status_code", None) != 404:
-                    raise
+        ors = [Filter.by_property("doc_id").equal(x) for x in ids]
+        where = ors[0]
+        for f in ors[1:]:
+            where = where | f
+        try:
+            col.data.delete_many(where=where)
+        except UnexpectedStatusCodeError as e:
+            if getattr(e, "status_code", None) != 404:
+                raise
 
     def search_by_vector(self, query_vector: list[float], **kwargs: Any) -> list[Document]:
         """

@@ -198,8 +198,52 @@ class RetrievalService:
 
         if retrieval_method == RetrievalMethod.HYBRID_SEARCH.value:
             all_documents = cls._deduplicate_documents(all_documents)
-        
+
         rag_logger.info("[%s] Retrieved %d documents", str(retrieval_method).upper(), len(all_documents))
+
+        # Drop Weaviate orphan vectors (ones with no live SQL segment).
+        # Without this, a query that vector-matches deleted/stale content returns
+        # docs whose `index_node_id` cannot be resolved later when the caller
+        # (e.g. DatasetMultiRetrieverTool._run) joins back to document_segments,
+        # producing an empty tool response. Filtering here keeps orphans benign.
+        if all_documents:
+            try:
+                from extensions.ext_database import db
+                from models.dataset import DocumentSegment
+
+                node_ids = {
+                    d.metadata["doc_id"]
+                    for d in all_documents
+                    if d.metadata and d.metadata.get("doc_id")
+                }
+                if node_ids:
+                    valid_ids = {
+                        row[0]
+                        for row in db.session.query(DocumentSegment.index_node_id)
+                        .filter(
+                            DocumentSegment.dataset_id == dataset_id,
+                            DocumentSegment.enabled == True,
+                            DocumentSegment.status == "completed",
+                            DocumentSegment.index_node_id.in_(node_ids),
+                        )
+                        .all()
+                    }
+                    before = len(all_documents)
+                    all_documents = [
+                        d
+                        for d in all_documents
+                        if d.metadata and d.metadata.get("doc_id") in valid_ids
+                    ]
+                    after = len(all_documents)
+                    if before != after:
+                        rag_logger.info(
+                            "[ORPHAN_FILTER] Dropped %d Weaviate orphan(s) without live SQL segment: %d → %d",
+                            before - after,
+                            before,
+                            after,
+                        )
+            except Exception:
+                rag_logger.exception("[ORPHAN_FILTER] error filtering orphan vectors; passing through")
 
         # Apply post-retrieval filtering BEFORE reranking if enabled
         # This reduces the number of documents that need to be reranked, improving efficiency
